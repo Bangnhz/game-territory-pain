@@ -41,8 +41,6 @@ Thumbs.db
 logs/
 
 # Application specific
-game-server/outbox/
-outbox/
 *.db
 *.sqlite
 
