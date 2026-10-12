@@ -5,18 +5,55 @@
 
 ---
 
+## ⚡ HƯỚNG DẪN KHỞI CHẠY NHANH (QUICK START)
+
+Dự án cung cấp **2 cách khởi chạy**:
+
+### 🔹 Cách A (Không dùng Docker - Chạy trực tiếp trên máy thật):
+1. **Cài đặt & cấu hình MySQL Server**:
+   * Cài đặt MySQL 8.0+ trên máy (port mặc định `3306`, user: `root`, password: `123456`).
+   * Tạo database và nạp schema từ file `game-backend/src/main/resources/schema.sql`:
+     ```sql
+     CREATE DATABASE territorial_paint CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+     ```
+     Hoặc bằng terminal:
+     ```bash
+     mysql -u root -p territorial_paint < game-backend/src/main/resources/schema.sql
+     ```
+2. **Khởi chạy toàn bộ hệ thống**:
+   * Chạy file `run-all.bat` (hoặc double-click vào `run-all.bat` ở thư mục gốc) để tự động khởi động đồng thời cả 3 thành phần: **Spring Boot Backend (Port 8080)**, **Game Server TCP (Port 8888)** và **Game Client JavaFX**.
+
+---
+
+### 🔹 Cách B (Có Docker - Khuyên dùng, nhanh gọn & không cần cài MySQL):
+1. **Khởi động nhanh Database bằng Docker Compose**:
+   * Mở Terminal tại thư mục gốc dự án và gõ lệnh:
+     ```bash
+     docker compose up -d
+     ```
+   * *Container MySQL 8.0 sẽ tự động khởi tạo trên port 3306, thiết lập sẵn database `territorial_paint` và tự động thực thi nạp toàn bộ cấu trúc bảng từ `schema.sql`.*
+2. **Khởi chạy toàn bộ hệ thống**:
+   * Chạy file `run-all.bat` (hoặc double-click vào `run-all.bat` ở thư mục gốc) để khởi động toàn bộ ứng dụng.
+3. *(Tùy chọn khi muốn tắt database)*:
+   ```bash
+   docker compose down
+   ```
+
+---
+
 ## 📋 MỤC LỤC
-1. [Giới Thiệu Tổng Quan](#-giới-thiệu-tổng-quan)
-2. [🚀 Hướng Dẫn Cài Đặt & Khởi Chạy (Usage Instructions)](#-hướng-dẫn-cài-đặt--khởi-chạy-usage-instructions)
-3. [🕹 Hướng Dẫn Trải Nghiệm Trò Chơi (User Guide)](#-hướng-dẫn-trải-nghiệm-trò-chơi-user-guide)
-4. [Kiến Trúc Hệ Thống (System Architecture)](#-kiến-trúc-hệ-thống-system-architecture)
-5. [Công Nghệ Sử Dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
-6. [Luật Chơi & Cơ Chế Game (Game Mechanics & Rules)](#-luật-chơi--cơ-chế-game-game-mechanics--rules)
-7. [Chi Tiết Thiết Kế Cơ Sở Dữ Liệu (Database Schema)](#-chi-tiết-thiết-kế-cơ-sở-dữ-liệu-database-schema)
-8. [Giao Thức Truyền Tin & An Toàn Dữ Liệu](#-giao-thức-truyền-tin--an-toàn-dữ-liệu)
-9. [Yêu Cầu Môi Trường (Prerequisites)](#-yêu-cầu-môi-trường-prerequisites)
-10. [Cấu Hình Nâng Cao (Advanced Configuration)](#-cấu-hình-nâng-cao-advanced-configuration)
-11. [Cấu Trúc Thư Mục Dự Án (Directory Structure)](#-cấu-trúc-thư-mục-dự-án-directory-structure)
+1. [⚡ Hướng Dẫn Khởi Chạy Nhanh (Quick Start)](#-hướng-dẫn-khởi-chạy-nhanh-quick-start)
+2. [Giới Thiệu Tổng Quan](#-giới-thiệu-tổng-quan)
+3. [🚀 Hướng Dẫn Cài Đặt Chi Tiết & Khởi Chạy Từng Bước](#-hướng-dẫn-cài-đặt-chi-tiết--khởi-chạy-từng-bước)
+4. [🕹 Hướng Dẫn Trải Nghiệm Trò Chơi (User Guide)](#-hướng-dẫn-trải-nghiệm-trò-chơi-user-guide)
+5. [Kiến Trúc Hệ Thống (System Architecture)](#-kiến-trúc-hệ-thống-system-architecture)
+6. [Công Nghệ Sử Dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
+7. [Luật Chơi & Cơ Chế Game (Game Mechanics & Rules)](#-luật-chơi--cơ-chế-game-game-mechanics--rules)
+8. [Chi Tiết Thiết Kế Cơ Sở Dữ Liệu (Database Schema)](#-chi-tiết-thiết-kế-cơ-sở-dữ-liệu-database-schema)
+9. [Giao Thức Truyền Tin & An Toàn Dữ Liệu](#-giao-thức-truyền-tin--an-toàn-dữ-liệu)
+10. [Yêu Cầu Môi Trường (Prerequisites)](#-yêu-cầu-môi-trường-prerequisites)
+11. [Cấu Hình Nâng Cao (Advanced Configuration)](#-cấu-hình-nâng-cao-advanced-configuration)
+12. [Cấu Trúc Thư Mục Dự Án (Directory Structure)](#-cấu-trúc-thư-mục-dự-án-directory-structure)
 
 ---
 
@@ -28,21 +65,29 @@ Dự án áp dụng mô hình **Authoritative TCP Game Server** kết hợp vớ
 
 ---
 
-## 🚀 HƯỚNG DẪN CÀI ĐẶT & KHỞI CHẠY (USAGE INSTRUCTIONS)
+## 🚀 HƯỚNG DẪN CÀI ĐẶT CHI TIẾT & KHỞI CHẠY TỪNG BƯỚC
 
 ### Bước 1: Khởi tạo Cơ sở dữ liệu MySQL
 
-1. Mở MySQL Workbench hoặc Terminal MySQL Client.
-2. Tạo database tên `territorial_paint`:
-   ```sql
-   CREATE DATABASE territorial_paint CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   ```
-3. Chạy file khởi tạo schema từ đường dẫn: `game-backend/src/main/resources/schema.sql`
+Bạn có thể lựa chọn 1 trong 2 phương án:
 
-*(Hoặc dùng lệnh terminal)*:
-```bash
-mysql -u root -p territorial_paint < game-backend/src/main/resources/schema.sql
-```
+* **Cách 1: Khởi động nhanh bằng Docker (Khuyên dùng)**:
+  ```bash
+  docker compose up -d
+  ```
+  *(Database `territorial_paint` và file `schema.sql` sẽ được tự động import hoàn tất).*
+
+* **Cách 2: Chạy trực tiếp trên máy thật**:
+  1. Mở MySQL Workbench hoặc Terminal MySQL Client.
+  2. Tạo database tên `territorial_paint`:
+     ```sql
+     CREATE DATABASE territorial_paint CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+     ```
+  3. Chạy file khởi tạo schema từ đường dẫn: `game-backend/src/main/resources/schema.sql`  
+     *(Hoặc dùng lệnh terminal)*:
+     ```bash
+     mysql -u root -p territorial_paint < game-backend/src/main/resources/schema.sql
+     ```
 
 ---
 
@@ -282,6 +327,8 @@ ltm/
 ├── pom.xml                        # Maven Parent POM
 ├── README.md                      # Tài liệu hướng dẫn hệ thống
 ├── run-all.bat                    # Script tự động khởi chạy cả hệ thống
+├── docker-compose.yml             # Cấu hình Docker Compose khởi động MySQL
+├── Dockerfile                     # Dockerfile MySQL Database nạp sẵn schema
 ├── game-common/                   # Module dùng chung
 │   └── src/main/java/com/territorypaint/common/
 │       ├── GameConstants.java     # Thông số Hằng số game
