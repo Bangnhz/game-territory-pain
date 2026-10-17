@@ -125,6 +125,23 @@ public class LeaderboardView {
             }
             return new SimpleStringProperty(isMe ? name + " ⭐ (You)" : name);
         });
+        nameCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    if (item.contains("(You)")) {
+                        setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 800; -fx-font-size: 13px;");
+                    } else {
+                        setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 700; -fx-font-size: 13px;");
+                    }
+                }
+            }
+        });
 
         TableColumn<Map<String, Object>, String> scoreCol = new TableColumn<>("Total Score");
         scoreCol.setPrefWidth(120);
@@ -152,12 +169,38 @@ public class LeaderboardView {
             Object val = data.getValue().get("matchesPlayed");
             return new SimpleStringProperty(val != null ? String.valueOf(val) : "0");
         });
+        matchesCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #E2E8F0; -fx-font-weight: 600;");
+                }
+            }
+        });
 
         TableColumn<Map<String, Object>, String> winsCol = new TableColumn<>("Wins");
         winsCol.setPrefWidth(100);
         winsCol.setCellValueFactory(data -> {
             Object val = data.getValue().get("matchesWon");
             return new SimpleStringProperty(val != null ? String.valueOf(val) : "0");
+        });
+        winsCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #60A5FA; -fx-font-weight: bold;");
+                }
+            }
         });
 
         TableColumn<Map<String, Object>, String> winRateCol = new TableColumn<>("Win Rate");
@@ -170,6 +213,19 @@ public class LeaderboardView {
                 return new SimpleStringProperty(String.format("%.1f%%", pct));
             }
             return new SimpleStringProperty("0.0%");
+        });
+        winRateCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #FBBF24; -fx-font-weight: bold;");
+                }
+            }
         });
 
         table.getColumns().addAll(rankCol, nameCol, scoreCol, matchesCol, winsCol, winRateCol);
