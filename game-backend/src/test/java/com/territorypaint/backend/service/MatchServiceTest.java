@@ -72,9 +72,34 @@ class MatchServiceTest {
         assertFalse(response.isAlreadyExists());
         assertEquals("match-1", response.getMatchId());
 
+        // Player 1 won (+10): 100 -> 110
+        assertEquals(110L, user1.getTotalScore());
+        // Player 2 lost (-5): 100 -> 95
+        assertEquals(95L, user2.getTotalScore());
+
         verify(matchRepository).save(any(Match.class));
         verify(matchHistoryRepository, times(2)).save(any(MatchHistory.class));
         verify(userRepository, times(2)).save(any(User.class));
+    }
+
+    @Test
+    void testSaveMatch_LossClampedToZeroWhenScoreIsLow() {
+        user2.setTotalScore(3L);
+        SaveMatchRequest request = createRequest("match-2", "room-1", "TIMEOUT", null, 200, 150);
+
+        when(matchRepository.findById("match-2")).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user1));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user2));
+
+        UserStats stats1 = new UserStats(user1);
+        UserStats stats2 = new UserStats(user2);
+        when(userStatsRepository.findByUserIdInForUpdate(anyList())).thenReturn(Arrays.asList(stats1, stats2));
+
+        SaveMatchResponse response = matchService.saveMatch(request);
+
+        assertTrue(response.isSuccess());
+        // Player 2 had 3 LP, lost 5 -> clamped to 0 LP (never negative)
+        assertEquals(0L, user2.getTotalScore());
     }
 
     @Test

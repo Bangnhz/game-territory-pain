@@ -167,8 +167,8 @@ public class MatchService {
         userStatsRepository.save(stats2);
 
         // Update total_score for both users (Requirement 9.11)
-        user1.setTotalScore(user1.getTotalScore() + rankDelta1);
-        user2.setTotalScore(user2.getTotalScore() + rankDelta2);
+        user1.setTotalScore(Math.max(0L, user1.getTotalScore() + rankDelta1));
+        user2.setTotalScore(Math.max(0L, user2.getTotalScore() + rankDelta2));
 
         userRepository.save(user1);
         userRepository.save(user2);
@@ -234,7 +234,7 @@ public class MatchService {
         return switch (outcome) {
             case "WIN" -> 10;
             case "DRAW" -> 3;
-            case "LOSS" -> 0;
+            case "LOSS" -> -5;
             default -> 0;
         };
     }

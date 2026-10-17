@@ -281,8 +281,8 @@ public class GameRoom {
     private void buildAndDeliverResult(Long winnerUserId, MatchEndReason endReason, Long forfeitedUserId,
                                        MatchOutcome outcome1, MatchOutcome outcome2, int cells1, int cells2) {
 
-        int delta1 = (outcome1 == MatchOutcome.WIN) ? 10 : (outcome1 == MatchOutcome.DRAW ? 3 : 0);
-        int delta2 = (outcome2 == MatchOutcome.WIN) ? 10 : (outcome2 == MatchOutcome.DRAW ? 3 : 0);
+        int delta1 = (outcome1 == MatchOutcome.WIN) ? 10 : (outcome1 == MatchOutcome.DRAW ? 3 : -5);
+        int delta2 = (outcome2 == MatchOutcome.WIN) ? 10 : (outcome2 == MatchOutcome.DRAW ? 3 : -5);
 
         PlayerResultDTO pr1 = new PlayerResultDTO(player1Session.getUserId(), 1, cells1, outcome1, delta1);
         PlayerResultDTO pr2 = new PlayerResultDTO(player2Session.getUserId(), 2, cells2, outcome2, delta2);

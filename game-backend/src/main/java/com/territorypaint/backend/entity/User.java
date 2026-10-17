@@ -86,7 +86,7 @@ public class User {
     }
     
     public void setTotalScore(Long totalScore) {
-        this.totalScore = totalScore;
+        this.totalScore = totalScore != null ? Math.max(0L, totalScore) : 0L;
     }
     
     public Instant getCreatedAt() {

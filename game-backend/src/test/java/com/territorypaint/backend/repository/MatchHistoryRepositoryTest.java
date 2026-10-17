@@ -256,7 +256,7 @@ class MatchHistoryRepositoryTest {
         return switch (outcome) {
             case "WIN" -> 10;
             case "DRAW" -> 3;
-            case "LOSS" -> 0;
+            case "LOSS" -> -5;
             default -> 0;
         };
     }
