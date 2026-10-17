@@ -1,16 +1,23 @@
 package com.territorypaint.client.ui;
 
+import javafx.animation.ScaleTransition;
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBase;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.media.AudioClip;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URL;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 /**
  * Audio and Sound Effects Manager for Territorial Paint Client.
@@ -24,6 +31,9 @@ public class SoundManager {
     private MediaPlayer lobbyBgmPlayer;
     private AudioClip moveSfx;
     private AudioClip clickSfx;
+
+    private boolean muted = false;
+    private final List<Consumer<Boolean>> muteListeners = new CopyOnWriteArrayList<>();
 
     private SoundManager() {
         initSounds();
@@ -75,10 +85,110 @@ public class SoundManager {
         }
     }
 
+    // --- Điều khiển MUTE / UNMUTE toàn bộ âm thanh ---
+    public boolean isMuted() {
+        return muted;
+    }
+
+    public synchronized void setMuted(boolean mute) {
+        this.muted = mute;
+        try {
+            if (lobbyBgmPlayer != null) {
+                lobbyBgmPlayer.setMute(muted);
+                if (muted) {
+                    lobbyBgmPlayer.pause();
+                } else {
+                    lobbyBgmPlayer.play();
+                }
+            }
+        } catch (Throwable e) {
+            log.warn("Lỗi đồng bộ trạng thái âm thanh: {}", e.getMessage());
+        }
+        notifyMuteListeners(muted);
+    }
+
+    public synchronized boolean toggleMute() {
+        setMuted(!muted);
+        return muted;
+    }
+
+    public void addMuteListener(Consumer<Boolean> listener) {
+        if (listener != null) {
+            muteListeners.add(listener);
+            listener.accept(muted);
+        }
+    }
+
+    public void removeMuteListener(Consumer<Boolean> listener) {
+        if (listener != null) {
+            muteListeners.remove(listener);
+        }
+    }
+
+    private void notifyMuteListeners(boolean isMuted) {
+        for (Consumer<Boolean> listener : muteListeners) {
+            try {
+                listener.accept(isMuted);
+            } catch (Throwable t) {
+                log.warn("Lỗi notify mute listener: {}", t.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Tạo một nút bấm bật/tắt tiếng phong cách Cyber Arena,
+     * tự động đồng bộ trạng thái âm thanh trên toàn ứng dụng.
+     */
+    public Button createSoundToggleButton() {
+        Button btn = new Button();
+        btn.getStyleClass().add("sound-toggle-btn");
+        updateSoundButtonDisplay(btn, isMuted());
+
+        btn.setOnAction(e -> {
+            toggleMute();
+            playClickSfx();
+        });
+
+        // Hover scale animation
+        btn.setOnMouseEntered(e -> {
+            ScaleTransition st = new ScaleTransition(Duration.millis(120), btn);
+            st.setToX(1.05);
+            st.setToY(1.05);
+            st.play();
+        });
+        btn.setOnMouseExited(e -> {
+            ScaleTransition st = new ScaleTransition(Duration.millis(120), btn);
+            st.setToX(1.0);
+            st.setToY(1.0);
+            st.play();
+        });
+
+        addMuteListener(isMutedState -> Platform.runLater(() -> updateSoundButtonDisplay(btn, isMutedState)));
+        return btn;
+    }
+
+    private void updateSoundButtonDisplay(Button btn, boolean isMuted) {
+        if (isMuted) {
+            btn.setText("🔇 Sound: OFF");
+            btn.getStyleClass().removeAll("sound-btn-on");
+            if (!btn.getStyleClass().contains("sound-btn-off")) {
+                btn.getStyleClass().add("sound-btn-off");
+            }
+        } else {
+            btn.setText("🔊 Sound: ON");
+            btn.getStyleClass().removeAll("sound-btn-off");
+            if (!btn.getStyleClass().contains("sound-btn-on")) {
+                btn.getStyleClass().add("sound-btn-on");
+            }
+        }
+    }
+
     // --- Điều khiển BGM Sảnh chờ ---
     public void playLobbyBgm() {
+        if (muted) return;
         try {
             if (lobbyBgmPlayer != null && lobbyBgmPlayer.getStatus() != MediaPlayer.Status.PLAYING) {
+                lobbyBgmPlayer.setMute(false);
                 lobbyBgmPlayer.play();
             }
         } catch (Throwable e) {
@@ -98,6 +208,7 @@ public class SoundManager {
 
     // --- Điều khiển SFX Di chuyển ---
     public void playMoveSfx() {
+        if (muted) return;
         try {
             if (moveSfx != null) {
                 moveSfx.play();
@@ -109,6 +220,7 @@ public class SoundManager {
 
     // --- Điều khiển SFX Click nút ---
     public void playClickSfx() {
+        if (muted) return;
         try {
             if (clickSfx != null) {
                 clickSfx.play();

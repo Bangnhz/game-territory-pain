@@ -134,21 +134,29 @@ public class GameView {
         gameLayout.setPadding(new Insets(20));
 
         // Top HUD Header
-        HBox hud = new HBox(30);
+        HBox hud = new HBox(20);
         hud.setAlignment(Pos.CENTER);
-        hud.setPadding(new Insets(10, 20, 15, 20));
+        hud.setPadding(new Insets(10, 20, 10, 20));
         hud.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 8;");
 
         player1ScoreLabel = new Label("Player 1 (Blue): 1");
         player1ScoreLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #38BDF8;");
 
+        Region spacer1 = new Region();
+        HBox.setHgrow(spacer1, Priority.ALWAYS);
+
         timerLabel = new Label("60s");
         timerLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #FACC15;");
+
+        Region spacer2 = new Region();
+        HBox.setHgrow(spacer2, Priority.ALWAYS);
 
         player2ScoreLabel = new Label("Player 2 (Orange): 1");
         player2ScoreLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #FB923C;");
 
-        hud.getChildren().addAll(player1ScoreLabel, timerLabel, player2ScoreLabel);
+        Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
+
+        hud.getChildren().addAll(player1ScoreLabel, spacer1, timerLabel, spacer2, player2ScoreLabel, soundToggleBtn);
         gameLayout.setTop(hud);
 
         // Center Game Board Canvas

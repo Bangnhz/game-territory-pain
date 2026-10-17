@@ -86,7 +86,13 @@ public class LoginView {
                 switchBox
         );
 
-        root.getChildren().add(card);
+        HBox topBox = new HBox();
+        topBox.setMaxWidth(400);
+        topBox.setAlignment(Pos.CENTER_RIGHT);
+        Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
+        topBox.getChildren().add(soundToggleBtn);
+
+        root.getChildren().addAll(topBox, card);
     }
 
     private void toggleMode() {

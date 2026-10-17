@@ -115,6 +115,12 @@ public class SceneManager {
             if (scene == null) {
                 scene = new Scene(root, 1000, 720);
                 scene.getStylesheets().add(getStylesheetUrl());
+                try {
+                    var cssUrl = getClass().getResource("/css/lobby.css");
+                    if (cssUrl != null) {
+                        scene.getStylesheets().add(cssUrl.toExternalForm());
+                    }
+                } catch (Exception ignored) {}
                 stage.setScene(scene);
             } else {
                 scene.setRoot(root);

@@ -706,6 +706,44 @@
     -fx-background-color: #38BDF8;
 }
 
+/* --------------------------------------------------------------------------
+   SOUND TOGGLE BUTTON
+   -------------------------------------------------------------------------- */
+.sound-toggle-btn {
+    -fx-background-radius: 10px;
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+    -fx-padding: 8 16;
+    -fx-cursor: hand;
+}
+
+.sound-btn-on {
+    -fx-background-color: rgba(16, 185, 129, 0.15);
+    -fx-border-color: rgba(16, 185, 129, 0.5);
+    -fx-border-radius: 10px;
+    -fx-border-width: 1.5px;
+    -fx-text-fill: #34D399;
+}
+
+.sound-btn-on:hover {
+    -fx-background-color: rgba(16, 185, 129, 0.3);
+    -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.5), 10, 0, 0, 0);
+}
+
+.sound-btn-off {
+    -fx-background-color: rgba(239, 68, 68, 0.15);
+    -fx-border-color: rgba(239, 68, 68, 0.5);
+    -fx-border-radius: 10px;
+    -fx-border-width: 1.5px;
+    -fx-text-fill: #FCA5A5;
+}
+
+.sound-btn-off:hover {
+    -fx-background-color: rgba(239, 68, 68, 0.3);
+    -fx-effect: dropshadow(three-pass-box, rgba(239, 68, 68, 0.5), 10, 0, 0, 0);
+}
+
+
 
 
 

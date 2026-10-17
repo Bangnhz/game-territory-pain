@@ -58,7 +58,8 @@ public class LeaderboardView {
         Button backBtn = new Button("Back to Lobby");
         backBtn.setOnAction(e -> sceneManager.showLobbyScene());
 
-        header.getChildren().addAll(title, spacer, backBtn);
+        Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
+        header.getChildren().addAll(title, spacer, soundToggleBtn, backBtn);
         root.setTop(header);
 
         // Leaderboard Table

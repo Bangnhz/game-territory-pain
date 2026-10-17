@@ -179,7 +179,9 @@ public class LobbyView {
         Button logoutBtn = createNavButton("🚪 Logout", true);
         logoutBtn.setOnAction(e -> handleLogout());
 
-        header.getChildren().addAll(logoBox, spacer, leaderboardBtn, historyBtn, refreshBtn, logoutBtn);
+        Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
+
+        header.getChildren().addAll(logoBox, spacer, soundToggleBtn, leaderboardBtn, historyBtn, refreshBtn, logoutBtn);
         return header;
     }
 
