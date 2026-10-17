@@ -367,7 +367,7 @@ public class GameView {
                         boolean isMe = false;
                         Long myUserId = sceneManager.getClientState() != null ? sceneManager.getClientState().getUserId() : null;
                         if (finalReadyUserId != null && myUserId != null) {
-                            isMe = finalReadyUserId.equals(myUserId);
+                            isMe = (finalReadyUserId.longValue() == myUserId.longValue());
                         } else {
                             isMe = readyButton.isDisabled();
                         }
@@ -706,9 +706,13 @@ public class GameView {
         modalRematchButton.setOnAction(e -> {
             SoundManager.getInstance().playClickSfx();
             modalRematchButton.setDisable(true);
-            modalRematchButton.setText("⏳ REMATCH REQUESTED");
-            modalRematchStatusLabel.setText("Rematch requested! Waiting for opponent to accept...");
-            modalRematchStatusLabel.setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: bold;");
+            modalRematchButton.setText("⏳ WAITING FOR OPPONENT...");
+            modalRematchButton.getStyleClass().removeAll("btn-result-rematch", "btn-result-rematch-accept");
+            if (!modalRematchButton.getStyleClass().contains("btn-result-rematch-waiting")) {
+                modalRematchButton.getStyleClass().add("btn-result-rematch-waiting");
+            }
+            modalRematchStatusLabel.setText("You requested a rematch! Waiting for opponent to accept...");
+            modalRematchStatusLabel.setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: 800;");
             sceneManager.getTcpClient().send(Message.event(ActionType.REMATCH, Map.of("accept", true)));
         });
 
@@ -832,21 +836,56 @@ public class GameView {
 
     private void updateRematchStatus(RematchStatusPayload payload) {
         if (payload == null || modalRematchStatusLabel == null) return;
-        int count = payload.getAcceptedUserIds() != null ? payload.getAcceptedUserIds().size() : 0;
-        Long myId = sceneManager.getClientState().getUserId();
-        boolean iAccepted = payload.getAcceptedUserIds() != null && myId != null && payload.getAcceptedUserIds().contains(myId);
+        List<?> accepted = payload.getAcceptedUserIds();
+        int count = accepted != null ? accepted.size() : 0;
+        Long myId = sceneManager.getClientState() != null ? sceneManager.getClientState().getUserId() : null;
 
-        if (count == 1) {
-            if (iAccepted) {
-                modalRematchStatusLabel.setText("You requested rematch! Waiting for opponent...");
-                modalRematchStatusLabel.setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
-            } else {
-                modalRematchStatusLabel.setText("Opponent wants a rematch! Click Rematch to accept!");
-                modalRematchStatusLabel.setStyle("-fx-text-fill: #FBBF24; -fx-font-weight: bold;");
+        boolean iAccepted = false;
+        if (accepted != null && myId != null) {
+            for (Object idObj : accepted) {
+                if (idObj instanceof Number num && num.longValue() == myId.longValue()) {
+                    iAccepted = true;
+                    break;
+                } else if (idObj != null && idObj.toString().equals(myId.toString())) {
+                    iAccepted = true;
+                    break;
+                }
             }
-        } else if (count >= 2) {
+        }
+
+        if (count >= 2) {
+            if (modalRematchButton != null) {
+                modalRematchButton.setDisable(true);
+                modalRematchButton.setText("⚔️ MATCH STARTING...");
+            }
             modalRematchStatusLabel.setText("Both players accepted! Starting new match...");
-            modalRematchStatusLabel.setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+            modalRematchStatusLabel.setStyle("-fx-text-fill: #34D399; -fx-font-weight: 900;");
+        } else if (count == 1) {
+            if (iAccepted) {
+                if (modalRematchButton != null) {
+                    modalRematchButton.setDisable(true);
+                    modalRematchButton.setText("⏳ WAITING FOR OPPONENT...");
+                    modalRematchButton.getStyleClass().removeAll("btn-result-rematch", "btn-result-rematch-accept");
+                    if (!modalRematchButton.getStyleClass().contains("btn-result-rematch-waiting")) {
+                        modalRematchButton.getStyleClass().add("btn-result-rematch-waiting");
+                    }
+                }
+                modalRematchStatusLabel.setText("You requested a rematch! Waiting for opponent to accept...");
+                modalRematchStatusLabel.setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: 800;");
+            } else {
+                if (modalRematchButton != null) {
+                    modalRematchButton.setDisable(false);
+                    modalRematchButton.setText("⚔️ ACCEPT REMATCH");
+                    modalRematchButton.getStyleClass().removeAll("btn-result-rematch", "btn-result-rematch-waiting");
+                    if (!modalRematchButton.getStyleClass().contains("btn-result-rematch-accept")) {
+                        modalRematchButton.getStyleClass().add("btn-result-rematch-accept");
+                    }
+                    animateCountdownPulse(modalRematchButton);
+                    SoundManager.getInstance().playMoveSfx();
+                }
+                modalRematchStatusLabel.setText("🔥 Opponent wants a rematch! Click Accept to battle again!");
+                modalRematchStatusLabel.setStyle("-fx-text-fill: #FACC15; -fx-font-weight: 900;");
+            }
         }
     }
 

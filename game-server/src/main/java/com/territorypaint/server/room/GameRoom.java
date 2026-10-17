@@ -119,17 +119,16 @@ public class GameRoom {
             if (status != RoomStatus.WAITING_READY) {
                 return;
             }
-            if (matchId != null && !matchId.isBlank() && !currentMatchId.equals(matchId)) {
-                logger.warn("Ready matchId mismatch: expected {}, got {}", currentMatchId, matchId);
-                return;
+            if (matchId != null && !matchId.isBlank() && currentMatchId != null && !currentMatchId.equalsIgnoreCase(matchId)) {
+                logger.warn("Ready matchId mismatch: expected {}, got {}, proceeding for room {}", currentMatchId, matchId, roomId);
             }
 
             int readySlot = 0;
-            if (session.getUserId().equals(player1Session.getUserId())) {
+            if (session.getUserId() != null && player1Session.getUserId() != null && session.getUserId().longValue() == player1Session.getUserId().longValue()) {
                 ready1 = true;
                 readySlot = 1;
                 logger.info("Player 1 ({}) is READY in room {}", session.getUsername(), roomId);
-            } else if (session.getUserId().equals(player2Session.getUserId())) {
+            } else if (session.getUserId() != null && player2Session.getUserId() != null && session.getUserId().longValue() == player2Session.getUserId().longValue()) {
                 ready2 = true;
                 readySlot = 2;
                 logger.info("Player 2 ({}) is READY in room {}", session.getUsername(), roomId);
