@@ -13,20 +13,32 @@ public class LeaderboardResponse {
     private Integer size;
     private Long totalElements;
     private Integer totalPages;
+    private LeaderboardEntry currentUserEntry;
     
     public LeaderboardResponse() {
     }
     
     public LeaderboardResponse(List<LeaderboardEntry> entries, Integer page, Integer size, 
                               Long totalElements, Integer totalPages) {
+        this(entries, page, size, totalElements, totalPages, null);
+    }
+
+    public LeaderboardResponse(List<LeaderboardEntry> entries, Integer page, Integer size, 
+                              Long totalElements, Integer totalPages, LeaderboardEntry currentUserEntry) {
         this.entries = entries;
         this.page = page;
         this.size = size;
         this.totalElements = totalElements;
         this.totalPages = totalPages;
+        this.currentUserEntry = currentUserEntry;
     }
     
     public List<LeaderboardEntry> getEntries() {
+        return entries;
+    }
+
+    // Alias for frontend compatibility
+    public List<LeaderboardEntry> getContent() {
         return entries;
     }
     
@@ -64,5 +76,13 @@ public class LeaderboardResponse {
     
     public void setTotalPages(Integer totalPages) {
         this.totalPages = totalPages;
+    }
+
+    public LeaderboardEntry getCurrentUserEntry() {
+        return currentUserEntry;
+    }
+
+    public void setCurrentUserEntry(LeaderboardEntry currentUserEntry) {
+        this.currentUserEntry = currentUserEntry;
     }
 }

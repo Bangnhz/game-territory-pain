@@ -57,9 +57,16 @@ public class UserController {
      */
     @GetMapping("/leaderboard")
     public ResponseEntity<LeaderboardResponse> getLeaderboard(
+            @AuthenticationPrincipal JwtUser jwtUser,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
-        LeaderboardResponse response = userService.getLeaderboard(page, size);
+            @RequestParam(name = "size", defaultValue = "100") int size) {
+        LeaderboardResponse response = (jwtUser != null && jwtUser.getUserId() != null)
+                ? userService.getLeaderboard(jwtUser.getUserId(), page, size)
+                : userService.getLeaderboard(page, size);
         return ResponseEntity.ok(response);
+    }
+
+    public ResponseEntity<LeaderboardResponse> getLeaderboard(int page, int size) {
+        return getLeaderboard(null, page, size);
     }
 }

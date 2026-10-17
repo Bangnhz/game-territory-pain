@@ -11,6 +11,9 @@ public class LeaderboardEntry {
     private String username;
     private Long totalScore;
     private Double winRate;
+    private Integer matchesPlayed = 0;
+    private Integer matchesWon = 0;
+    private Boolean isCurrentUser = false;
     
     public LeaderboardEntry() {
     }
@@ -21,6 +24,21 @@ public class LeaderboardEntry {
         this.username = username;
         this.totalScore = totalScore;
         this.winRate = winRate;
+        this.matchesPlayed = 0;
+        this.matchesWon = 0;
+        this.isCurrentUser = false;
+    }
+
+    public LeaderboardEntry(Integer rank, Long userId, String username, Long totalScore, Double winRate,
+                            Integer matchesPlayed, Integer matchesWon, Boolean isCurrentUser) {
+        this.rank = rank;
+        this.userId = userId;
+        this.username = username;
+        this.totalScore = totalScore;
+        this.winRate = winRate;
+        this.matchesPlayed = matchesPlayed != null ? matchesPlayed : 0;
+        this.matchesWon = matchesWon != null ? matchesWon : 0;
+        this.isCurrentUser = Boolean.TRUE.equals(isCurrentUser);
     }
     
     public Integer getRank() {
@@ -61,5 +79,29 @@ public class LeaderboardEntry {
     
     public void setWinRate(Double winRate) {
         this.winRate = winRate;
+    }
+
+    public Integer getMatchesPlayed() {
+        return matchesPlayed;
+    }
+
+    public void setMatchesPlayed(Integer matchesPlayed) {
+        this.matchesPlayed = matchesPlayed;
+    }
+
+    public Integer getMatchesWon() {
+        return matchesWon;
+    }
+
+    public void setMatchesWon(Integer matchesWon) {
+        this.matchesWon = matchesWon;
+    }
+
+    public Boolean getIsCurrentUser() {
+        return isCurrentUser;
+    }
+
+    public void setIsCurrentUser(Boolean isCurrentUser) {
+        this.isCurrentUser = isCurrentUser;
     }
 }

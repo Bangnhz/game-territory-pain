@@ -1,5 +1,6 @@
 package com.territorypaint.backend.service;
 
+import com.territorypaint.backend.dto.LeaderboardEntry;
 import com.territorypaint.backend.dto.LeaderboardResponse;
 import com.territorypaint.backend.dto.ProfileResponse;
 import com.territorypaint.backend.entity.User;
@@ -270,6 +271,46 @@ class UserServiceTest {
         // Assert - should use default stats with 0.00 win rate
         assertEquals(1, response.getEntries().size());
         assertEquals(0.00, response.getEntries().get(0).getWinRate());
+    }
+    
+    @Test
+    void testGetLeaderboard_UserOutsideTop100_AppendedAtEnd() {
+        // Arrange: Top list has 2 users, current user is user 999 (not in top list, rank 154)
+        User user1 = createUser(1L, "top1", 1000L);
+        User user2 = createUser(2L, "top2", 900L);
+        User currentUser = createUser(999L, "me_player", 10L);
+        
+        Page<User> topPage = new PageImpl<>(Arrays.asList(user1, user2), PageRequest.of(0, 20), 200);
+        when(userRepository.findLeaderboard(any(Pageable.class))).thenReturn(topPage);
+        when(userStatsRepository.findById(1L)).thenReturn(Optional.of(createStats(user1, 10, 8, 2, 0)));
+        when(userStatsRepository.findById(2L)).thenReturn(Optional.of(createStats(user2, 10, 7, 3, 0)));
+        
+        when(userRepository.findById(999L)).thenReturn(Optional.of(currentUser));
+        when(userRepository.findUserRank(10L, 999L)).thenReturn(154L);
+        when(userStatsRepository.findById(999L)).thenReturn(Optional.of(createStats(currentUser, 5, 1, 4, 0)));
+        
+        // Act: call with currentUserId = 999
+        LeaderboardResponse response = userService.getLeaderboard(999L, 0, 20);
+        
+        // Assert: 2 top users + 1 appended currentUser = 3 entries
+        assertEquals(3, response.getEntries().size());
+        
+        // Entry 1 & 2 are top users
+        assertEquals(1L, response.getEntries().get(0).getUserId());
+        assertEquals(1, response.getEntries().get(0).getRank());
+        assertFalse(response.getEntries().get(0).getIsCurrentUser());
+        
+        assertEquals(2L, response.getEntries().get(1).getUserId());
+        assertEquals(2, response.getEntries().get(1).getRank());
+        assertFalse(response.getEntries().get(1).getIsCurrentUser());
+        
+        // Entry 3 is currentUser appended at the end with their actual rank 154
+        LeaderboardEntry appended = response.getEntries().get(2);
+        assertEquals(999L, appended.getUserId());
+        assertEquals("me_player", appended.getUsername());
+        assertEquals(154, appended.getRank());
+        assertEquals(10L, appended.getTotalScore());
+        assertTrue(appended.getIsCurrentUser());
     }
     
     // Helper methods

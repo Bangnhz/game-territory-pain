@@ -58,8 +58,12 @@ public class LeaderboardView {
         Button backBtn = new Button("Back to Lobby");
         backBtn.setOnAction(e -> sceneManager.showLobbyScene());
 
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.getStyleClass().add("button-secondary");
+        refreshBtn.setOnAction(e -> loadPage(currentPage));
+
         Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
-        header.getChildren().addAll(title, spacer, soundToggleBtn, backBtn);
+        header.getChildren().addAll(title, spacer, refreshBtn, soundToggleBtn, backBtn);
         root.setTop(header);
 
         // Leaderboard Table
@@ -67,70 +71,183 @@ public class LeaderboardView {
         table = new TableView<>(list);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
+        Label placeholder = new Label("No players registered yet.\nRankings will appear as players join!");
+        placeholder.setStyle("-fx-text-fill: #94A3B8; -fx-font-size: 14px; -fx-alignment: center; -fx-text-alignment: center;");
+        table.setPlaceholder(placeholder);
+
         TableColumn<Map<String, Object>, String> rankCol = new TableColumn<>("Rank");
+        rankCol.setPrefWidth(90);
         rankCol.setCellValueFactory(data -> {
-            int index = table.getItems().indexOf(data.getValue()) + 1 + (currentPage * 10);
-            return new SimpleStringProperty("#" + index);
+            Object rank = data.getValue().get("rank");
+            if (rank instanceof Number num) {
+                int r = num.intValue();
+                if (r == 1) return new SimpleStringProperty("🥇 #1");
+                if (r == 2) return new SimpleStringProperty("🥈 #2");
+                if (r == 3) return new SimpleStringProperty("🥉 #3");
+                return new SimpleStringProperty("#" + r);
+            }
+            return new SimpleStringProperty("#-");
+        });
+        rankCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    if (item.contains("🥇")) {
+                        setStyle("-fx-text-fill: #FACC15; -fx-font-weight: bold;");
+                    } else if (item.contains("🥈")) {
+                        setStyle("-fx-text-fill: #E2E8F0; -fx-font-weight: bold;");
+                    } else if (item.contains("🥉")) {
+                        setStyle("-fx-text-fill: #F97316; -fx-font-weight: bold;");
+                    } else {
+                        setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: bold;");
+                    }
+                }
+            }
         });
 
         TableColumn<Map<String, Object>, String> nameCol = new TableColumn<>("Username");
-        nameCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("username"))));
+        nameCol.setPrefWidth(180);
+        nameCol.setCellValueFactory(data -> {
+            Object uname = data.getValue().get("username");
+            String name = uname != null ? uname.toString() : "Unknown";
+            Long currentUserId = sceneManager.getClientState().getUserId();
+            boolean isMe = Boolean.TRUE.equals(data.getValue().get("isCurrentUser"));
+            if (!isMe && currentUserId != null) {
+                Object uId = data.getValue().get("userId");
+                if (uId instanceof Number num && num.longValue() == currentUserId.longValue()) {
+                    isMe = true;
+                }
+            }
+            return new SimpleStringProperty(isMe ? name + " ⭐ (You)" : name);
+        });
 
         TableColumn<Map<String, Object>, String> scoreCol = new TableColumn<>("Total Score");
-        scoreCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("totalScore"))));
+        scoreCol.setPrefWidth(120);
+        scoreCol.setCellValueFactory(data -> {
+            Object val = data.getValue().get("totalScore");
+            return new SimpleStringProperty((val != null ? val.toString() : "0") + " pts");
+        });
+        scoreCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+                }
+            }
+        });
 
         TableColumn<Map<String, Object>, String> matchesCol = new TableColumn<>("Played");
-        matchesCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("matchesPlayed"))));
+        matchesCol.setPrefWidth(100);
+        matchesCol.setCellValueFactory(data -> {
+            Object val = data.getValue().get("matchesPlayed");
+            return new SimpleStringProperty(val != null ? String.valueOf(val) : "0");
+        });
 
         TableColumn<Map<String, Object>, String> winsCol = new TableColumn<>("Wins");
-        winsCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("matchesWon"))));
+        winsCol.setPrefWidth(100);
+        winsCol.setCellValueFactory(data -> {
+            Object val = data.getValue().get("matchesWon");
+            return new SimpleStringProperty(val != null ? String.valueOf(val) : "0");
+        });
 
         TableColumn<Map<String, Object>, String> winRateCol = new TableColumn<>("Win Rate");
+        winRateCol.setPrefWidth(110);
         winRateCol.setCellValueFactory(data -> {
             Object wr = data.getValue().get("winRate");
-            return new SimpleStringProperty(wr != null ? String.format("%.1f%%", Double.parseDouble(wr.toString()) * 100) : "0.0%");
+            if (wr instanceof Number num) {
+                double d = num.doubleValue();
+                double pct = (d <= 1.0 && d > 0.0) ? d * 100.0 : d;
+                return new SimpleStringProperty(String.format("%.1f%%", pct));
+            }
+            return new SimpleStringProperty("0.0%");
         });
 
         table.getColumns().addAll(rankCol, nameCol, scoreCol, matchesCol, winsCol, winRateCol);
+
+        // Highlight Current User row
+        table.setRowFactory(tv -> new TableRow<Map<String, Object>>() {
+            @Override
+            protected void updateItem(Map<String, Object> item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setStyle("");
+                } else {
+                    Long currentUserId = sceneManager.getClientState().getUserId();
+                    boolean isMe = Boolean.TRUE.equals(item.get("isCurrentUser"));
+                    if (!isMe && currentUserId != null) {
+                        Object uId = item.get("userId");
+                        if (uId instanceof Number num && num.longValue() == currentUserId.longValue()) {
+                            isMe = true;
+                        }
+                    }
+                    if (isMe) {
+                        setStyle("-fx-background-color: rgba(56, 189, 248, 0.22); -fx-font-weight: bold; -fx-border-color: #38BDF8; -fx-border-width: 1px 0 1px 0;");
+                    } else {
+                        setStyle("");
+                    }
+                }
+            }
+        });
+
         root.setCenter(table);
 
-        // Pagination Bar
+        // Status Bar
         HBox pagination = new HBox(15);
         pagination.setAlignment(Pos.CENTER);
         pagination.setPadding(new Insets(15, 0, 0, 0));
 
-        prevBtn = new Button("Previous");
-        prevBtn.getStyleClass().add("button-secondary");
-        prevBtn.setOnAction(e -> {
-            if (currentPage > 0) loadPage(currentPage - 1);
-        });
-
-        pageLabel = new Label("Page 1 of 1");
+        pageLabel = new Label("Showing Top 100 Leaderboard");
         pageLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #94A3B8;");
 
-        nextBtn = new Button("Next");
-        nextBtn.getStyleClass().add("button-secondary");
-        nextBtn.setOnAction(e -> {
-            if (currentPage < totalPages - 1) loadPage(currentPage + 1);
-        });
-
-        pagination.getChildren().addAll(prevBtn, pageLabel, nextBtn);
+        pagination.getChildren().addAll(pageLabel);
         root.setBottom(pagination);
     }
 
     @SuppressWarnings("unchecked")
     public void loadPage(int page) {
         this.currentPage = page;
-        sceneManager.getRestClient().getLeaderboard(page, 10).thenAccept(res -> Platform.runLater(() -> {
-            if (res.containsKey("content")) {
-                List<Map<String, Object>> content = (List<Map<String, Object>>) res.get("content");
-                list.setAll(content);
-                Number totalPagesNum = (Number) res.getOrDefault("totalPages", 1);
-                this.totalPages = totalPagesNum != null ? totalPagesNum.intValue() : 1;
-                pageLabel.setText("Page " + (currentPage + 1) + " of " + Math.max(1, totalPages));
-                prevBtn.setDisable(currentPage == 0);
-                nextBtn.setDisable(currentPage >= totalPages - 1);
-            }
-        }));
+        sceneManager.getRestClient().getLeaderboard(0, 100)
+            .thenAccept(res -> Platform.runLater(() -> {
+                List<Map<String, Object>> entries = null;
+                if (res != null && res.containsKey("entries")) {
+                    entries = (List<Map<String, Object>>) res.get("entries");
+                } else if (res != null && res.containsKey("content")) {
+                    entries = (List<Map<String, Object>>) res.get("content");
+                }
+
+                if (entries != null) {
+                    list.setAll(entries);
+                    int total = entries.size();
+                    boolean hasAppendedUser = entries.stream().anyMatch(e -> {
+                        Object r = e.get("rank");
+                        return r instanceof Number && ((Number) r).intValue() > 100;
+                    });
+
+                    if (hasAppendedUser) {
+                        pageLabel.setText(String.format("Top 100 Server Ranking + Your Rank (#%s) (Total: %d)",
+                                entries.get(entries.size() - 1).get("rank"), total));
+                    } else {
+                        pageLabel.setText(String.format("Showing %d players (Top 100 Server Ranking)", total));
+                    }
+                } else if (res != null && res.containsKey("error")) {
+                    table.setPlaceholder(new Label("Failed to load leaderboard: " + res.getOrDefault("message", "Error")));
+                }
+            }))
+            .exceptionally(ex -> {
+                Platform.runLater(() -> {
+                    table.setPlaceholder(new Label("Error connecting to server. Please try again."));
+                });
+                return null;
+            });
     }
 }

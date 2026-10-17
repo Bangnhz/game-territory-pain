@@ -28,4 +28,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT u FROM User u ORDER BY u.totalScore DESC, u.id ASC")
     Page<User> findLeaderboard(Pageable pageable);
+
+    /**
+     * Calculate 1-based rank for a user based on totalScore DESC, id ASC.
+     * Count users with higher totalScore, or same totalScore and lower id.
+     */
+    @Query("SELECT COUNT(u) + 1 FROM User u WHERE u.totalScore > :score OR (u.totalScore = :score AND u.id < :id)")
+    long findUserRank(@org.springframework.data.repository.query.Param("score") Long score,
+                      @org.springframework.data.repository.query.Param("id") Long id);
 }

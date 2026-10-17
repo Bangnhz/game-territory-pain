@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * User service for profile and leaderboard operations.
@@ -75,6 +76,20 @@ public class UserService {
      * @return leaderboard response with ranked entries
      */
     public LeaderboardResponse getLeaderboard(int page, int size) {
+        return getLeaderboard(null, page, size);
+    }
+
+    /**
+     * Get paginated leaderboard ordered by totalScore DESC, userId ASC.
+     * Requirements: 10.6, 10.7, 10.8, 10.9
+     * If current user is outside the top list, appends current user as row 101 with actual rank.
+     * 
+     * @param currentUserId ID of authenticated user (nullable)
+     * @param page zero-based page number (default 0)
+     * @param size page size (default 20, max 100)
+     * @return leaderboard response with ranked entries
+     */
+    public LeaderboardResponse getLeaderboard(Long currentUserId, int page, int size) {
         // Validate and constrain pagination parameters (Requirement 10.9)
         page = Math.max(0, page);
         size = Math.max(1, Math.min(100, size));
@@ -88,6 +103,8 @@ public class UserService {
         List<LeaderboardEntry> entries = new ArrayList<>();
         int startRank = page * size + 1;
         int currentRank = startRank;
+        boolean currentUserFound = false;
+        LeaderboardEntry currentUserEntry = null;
         
         for (User user : userPage.getContent()) {
             // Fetch user stats for win rate
@@ -95,6 +112,10 @@ public class UserService {
                     .orElse(new UserStats(user));
             
             double winRate = stats.calculateWinRate();
+            boolean isMe = (currentUserId != null && currentUserId.equals(user.getId()));
+            if (isMe) {
+                currentUserFound = true;
+            }
             
             // Sequential rank - no duplicate rank positions (Requirement 10.8)
             LeaderboardEntry entry = new LeaderboardEntry(
@@ -102,10 +123,40 @@ public class UserService {
                     user.getId(),
                     user.getUsername(),
                     user.getTotalScore(),
-                    winRate
+                    winRate,
+                    stats.getMatchesPlayed(),
+                    stats.getMatchesWon(),
+                    isMe
             );
+            if (isMe) {
+                currentUserEntry = entry;
+            }
             entries.add(entry);
             currentRank++;
+        }
+
+        // If authenticated user is outside the top 100, append them as row 101 with their actual rank
+        if (currentUserId != null && !currentUserFound) {
+            Optional<User> currentUserOpt = userRepository.findById(currentUserId);
+            if (currentUserOpt.isPresent()) {
+                User currentUser = currentUserOpt.get();
+                long actualRank = userRepository.findUserRank(currentUser.getTotalScore(), currentUser.getId());
+                UserStats stats = userStatsRepository.findById(currentUser.getId())
+                        .orElse(new UserStats(currentUser));
+                double winRate = stats.calculateWinRate();
+
+                currentUserEntry = new LeaderboardEntry(
+                        (int) actualRank,
+                        currentUser.getId(),
+                        currentUser.getUsername(),
+                        currentUser.getTotalScore(),
+                        winRate,
+                        stats.getMatchesPlayed(),
+                        stats.getMatchesWon(),
+                        true
+                );
+                entries.add(currentUserEntry);
+            }
         }
         
         // Build response with pagination metadata (Requirement 10.9)
@@ -114,7 +165,8 @@ public class UserService {
                 page,
                 size,
                 userPage.getTotalElements(),
-                userPage.getTotalPages()
+                userPage.getTotalPages(),
+                currentUserEntry
         );
     }
 }
