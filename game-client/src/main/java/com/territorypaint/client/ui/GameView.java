@@ -80,7 +80,6 @@ public class GameView {
     private Label prepBadge;
     private Label prepTimerLabel;
     private Label prepSubtitleLabel;
-    private Label prepStatusBadge;
     private Label prepCountdownNum;
     private ScheduledExecutorService prepCountdownScheduler;
     private ScheduledFuture<?> prepCountdownTask;
@@ -146,13 +145,10 @@ public class GameView {
         prepTimerLabel.setVisible(true);
         prepTimerLabel.setManaged(true);
 
+        prepSubtitleLabel.setText("Both players must click READY to start");
+        prepSubtitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #94A3B8; -fx-font-weight: 600;");
         prepSubtitleLabel.setVisible(true);
         prepSubtitleLabel.setManaged(true);
-
-        prepStatusBadge.setText("0/2 PLAYERS READY");
-        prepStatusBadge.setStyle(null);
-        prepStatusBadge.setVisible(true);
-        prepStatusBadge.setManaged(true);
 
         readyButton.setVisible(true);
         readyButton.setManaged(true);
@@ -237,9 +233,6 @@ public class GameView {
         prepSubtitleLabel = new Label("Both players must click READY to start");
         prepSubtitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #94A3B8; -fx-font-weight: 600;");
 
-        prepStatusBadge = new Label("0/2 PLAYERS READY");
-        prepStatusBadge.getStyleClass().add("prep-status-badge");
-
         readyButton = new Button("⚡ READY TO PLAY");
         readyButton.getStyleClass().add("btn-ready-start");
         addScaleHoverAnimation(readyButton, 1.05);
@@ -250,7 +243,7 @@ public class GameView {
         prepCountdownNum.setVisible(false);
         prepCountdownNum.setManaged(false);
 
-        prepCard.getChildren().addAll(prepBadge, prepTimerLabel, prepSubtitleLabel, prepStatusBadge, readyButton, prepCountdownNum);
+        prepCard.getChildren().addAll(prepBadge, prepTimerLabel, prepSubtitleLabel, readyButton, prepCountdownNum);
         prepOverlay.getChildren().add(prepCard);
 
         StackPane boardStack = new StackPane();
@@ -286,8 +279,8 @@ public class GameView {
         readyButton.getStyleClass().removeAll("btn-ready-start");
         readyButton.getStyleClass().add("btn-ready-submitted");
         statusLabel.setText("Waiting for opponent to get READY...");
-        prepStatusBadge.setText("1/2 PLAYERS READY (WAITING FOR OPPONENT...)");
-        prepStatusBadge.setStyle("-fx-text-fill: #38BDF8;");
+        prepSubtitleLabel.setText("⏳ Waiting for opponent to get READY...");
+        prepSubtitleLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #38BDF8; -fx-font-weight: bold;");
 
         UUID mId = null;
         try {
@@ -417,12 +410,12 @@ public class GameView {
                         }
 
                         if (isMe) {
-                            prepStatusBadge.setText(finalReadyCount + "/2 PLAYERS READY (WAITING FOR OPPONENT...)");
-                            prepStatusBadge.setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: 800;");
+                            prepSubtitleLabel.setText("⏳ Waiting for opponent to get READY...");
+                            prepSubtitleLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #38BDF8; -fx-font-weight: bold;");
                         } else {
-                            prepStatusBadge.setText(finalReadyCount + "/2 PLAYERS READY (OPPONENT IS READY!)");
-                            prepStatusBadge.setStyle("-fx-text-fill: #34D399; -fx-font-weight: 900; -fx-border-color: rgba(52, 211, 153, 0.8); -fx-effect: dropshadow(three-pass-box, rgba(52, 211, 153, 0.5), 14, 0, 0, 0);");
-                            animateCountdownPulse(prepStatusBadge);
+                            prepSubtitleLabel.setText("🔥 Opponent is READY! Click below to start!");
+                            prepSubtitleLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #34D399; -fx-font-weight: 800;");
+                            animateCountdownPulse(readyButton);
                             SoundManager.getInstance().playMoveSfx();
                         }
                     }
@@ -985,8 +978,6 @@ public class GameView {
             prepTimerLabel.setManaged(false);
             prepSubtitleLabel.setVisible(false);
             prepSubtitleLabel.setManaged(false);
-            prepStatusBadge.setVisible(false);
-            prepStatusBadge.setManaged(false);
             readyButton.setVisible(false);
             readyButton.setManaged(false);
 
