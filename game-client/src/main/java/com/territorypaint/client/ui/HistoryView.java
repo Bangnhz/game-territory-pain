@@ -58,8 +58,12 @@ public class HistoryView {
         Button backBtn = new Button("Back to Lobby");
         backBtn.setOnAction(e -> sceneManager.showLobbyScene());
 
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.getStyleClass().add("button-secondary");
+        refreshBtn.setOnAction(e -> loadPage(currentPage));
+
         Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
-        header.getChildren().addAll(title, spacer, soundToggleBtn, backBtn);
+        header.getChildren().addAll(title, spacer, refreshBtn, soundToggleBtn, backBtn);
         root.setTop(header);
 
         // History Table
@@ -67,28 +71,118 @@ public class HistoryView {
         table = new TableView<>(list);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
+        Label placeholder = new Label("No matches played yet.\nPlay a match to see your battle history!");
+        placeholder.setStyle("-fx-text-fill: #94A3B8; -fx-font-size: 14px; -fx-alignment: center; -fx-text-alignment: center;");
+        table.setPlaceholder(placeholder);
+
         TableColumn<Map<String, Object>, String> idCol = new TableColumn<>("Match ID");
-        idCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("matchId")).substring(0, 8) + "..."));
+        idCol.setPrefWidth(120);
+        idCol.setCellValueFactory(data -> {
+            Object val = data.getValue().get("matchId");
+            if (val != null) {
+                String s = val.toString();
+                return new SimpleStringProperty(s.length() >= 8 ? s.substring(0, 8) + "..." : s);
+            }
+            return new SimpleStringProperty("-");
+        });
 
         TableColumn<Map<String, Object>, String> opponentCol = new TableColumn<>("Opponent");
-        opponentCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().getOrDefault("opponentUsername", "Opponent"))));
-
-        TableColumn<Map<String, Object>, String> slotCol = new TableColumn<>("Slot");
-        slotCol.setCellValueFactory(data -> new SimpleStringProperty("Slot " + data.getValue().get("playerSlot")));
-
-        TableColumn<Map<String, Object>, String> cellsCol = new TableColumn<>("Cells Owned");
-        cellsCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("cellsOwned"))));
+        opponentCol.setPrefWidth(140);
+        opponentCol.setCellValueFactory(data -> {
+            Object val = data.getValue().get("opponentUsername");
+            return new SimpleStringProperty(val != null ? val.toString() : "Unknown");
+        });
 
         TableColumn<Map<String, Object>, String> outcomeCol = new TableColumn<>("Outcome");
-        outcomeCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("outcome"))));
+        outcomeCol.setPrefWidth(110);
+        outcomeCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().getOrDefault("outcome", "-"))));
+        outcomeCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    if ("WIN".equalsIgnoreCase(item)) {
+                        setText("🏆 VICTORY");
+                        setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+                    } else if ("LOSS".equalsIgnoreCase(item)) {
+                        setText("💀 DEFEAT");
+                        setStyle("-fx-text-fill: #F87171; -fx-font-weight: bold;");
+                    } else if ("DRAW".equalsIgnoreCase(item)) {
+                        setText("🤝 DRAW");
+                        setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: bold;");
+                    } else {
+                        setText(item);
+                        setStyle("");
+                    }
+                }
+            }
+        });
+
+        TableColumn<Map<String, Object>, String> scoreCol = new TableColumn<>("Score (Cells)");
+        scoreCol.setPrefWidth(120);
+        scoreCol.setCellValueFactory(data -> {
+            Object my = data.getValue().get("myCells");
+            if (my == null) my = data.getValue().get("cellsOwned");
+            Object opp = data.getValue().get("opponentCells");
+            return new SimpleStringProperty((my != null ? my : "0") + " - " + (opp != null ? opp : "0"));
+        });
 
         TableColumn<Map<String, Object>, String> deltaCol = new TableColumn<>("Rank Delta");
-        deltaCol.setCellValueFactory(data -> new SimpleStringProperty("+" + data.getValue().get("rankDelta")));
+        deltaCol.setPrefWidth(100);
+        deltaCol.setCellValueFactory(data -> {
+            Object delta = data.getValue().get("rankDelta");
+            if (delta instanceof Number num) {
+                int d = num.intValue();
+                return new SimpleStringProperty(d > 0 ? "+" + d : String.valueOf(d));
+            }
+            return new SimpleStringProperty("+0");
+        });
+        deltaCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    if (item.startsWith("+") && !item.equals("+0")) {
+                        setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+                    } else if (item.startsWith("-")) {
+                        setStyle("-fx-text-fill: #F87171; -fx-font-weight: bold;");
+                    } else {
+                        setStyle("-fx-text-fill: #94A3B8;");
+                    }
+                }
+            }
+        });
 
-        TableColumn<Map<String, Object>, String> dateCol = new TableColumn<>("Ended At");
-        dateCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().get("endedAt"))));
+        TableColumn<Map<String, Object>, String> reasonCol = new TableColumn<>("Reason");
+        reasonCol.setPrefWidth(110);
+        reasonCol.setCellValueFactory(data -> {
+            Object reason = data.getValue().get("endReason");
+            return new SimpleStringProperty(reason != null ? reason.toString() : "TIMEOUT");
+        });
 
-        table.getColumns().addAll(idCol, opponentCol, slotCol, cellsCol, outcomeCol, deltaCol, dateCol);
+        TableColumn<Map<String, Object>, String> dateCol = new TableColumn<>("Played At");
+        dateCol.setPrefWidth(160);
+        dateCol.setCellValueFactory(data -> {
+            Object playedAt = data.getValue().get("playedAt");
+            if (playedAt == null) playedAt = data.getValue().get("endedAt");
+            if (playedAt != null) {
+                String str = playedAt.toString();
+                if (str.contains("T")) {
+                    return new SimpleStringProperty(str.replace("T", " ").replaceAll("\\..*", "").replace("Z", ""));
+                }
+                return new SimpleStringProperty(str);
+            }
+            return new SimpleStringProperty("-");
+        });
+
+        table.getColumns().addAll(idCol, opponentCol, outcomeCol, scoreCol, deltaCol, reasonCol, dateCol);
         root.setCenter(table);
 
         // Pagination Bar
@@ -118,16 +212,25 @@ public class HistoryView {
     @SuppressWarnings("unchecked")
     public void loadPage(int page) {
         this.currentPage = page;
-        sceneManager.getRestClient().getMatchHistory(page, 10).thenAccept(res -> Platform.runLater(() -> {
-            if (res.containsKey("content")) {
-                List<Map<String, Object>> content = (List<Map<String, Object>>) res.get("content");
-                list.setAll(content);
-                Number totalPagesNum = (Number) res.getOrDefault("totalPages", 1);
-                this.totalPages = totalPagesNum != null ? totalPagesNum.intValue() : 1;
-                pageLabel.setText("Page " + (currentPage + 1) + " of " + Math.max(1, totalPages));
-                prevBtn.setDisable(currentPage == 0);
-                nextBtn.setDisable(currentPage >= totalPages - 1);
-            }
-        }));
+        sceneManager.getRestClient().getMatchHistory(page, 10)
+            .thenAccept(res -> Platform.runLater(() -> {
+                if (res != null && res.containsKey("content")) {
+                    List<Map<String, Object>> content = (List<Map<String, Object>>) res.get("content");
+                    list.setAll(content);
+                    Number totalPagesNum = (Number) res.getOrDefault("totalPages", 1);
+                    this.totalPages = totalPagesNum != null ? Math.max(1, totalPagesNum.intValue()) : 1;
+                    pageLabel.setText("Page " + (currentPage + 1) + " of " + Math.max(1, totalPages));
+                    prevBtn.setDisable(currentPage == 0);
+                    nextBtn.setDisable(currentPage >= totalPages - 1);
+                } else if (res != null && res.containsKey("error")) {
+                    table.setPlaceholder(new Label("Failed to load match history: " + res.getOrDefault("message", "Error")));
+                }
+            }))
+            .exceptionally(ex -> {
+                Platform.runLater(() -> {
+                    table.setPlaceholder(new Label("Error connecting to server. Please try again."));
+                });
+                return null;
+            });
     }
 }

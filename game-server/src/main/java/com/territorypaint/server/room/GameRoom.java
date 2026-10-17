@@ -298,15 +298,16 @@ public class GameRoom {
                 new PlayerEntryDTO(player1Session.getUserId(), 1, cells1),
                 new PlayerEntryDTO(player2Session.getUserId(), 2, cells2)
         );
-        Map<String, Object> saveRequest = Map.of(
-                "matchId", currentMatchId,
-                "roomId", roomId,
-                "startedAt", matchStartedAt != null ? matchStartedAt.toString() : Instant.now().toString(),
-                "endedAt", Instant.now().toString(),
-                "endReason", endReason.name(),
-                "players", playerEntries,
-                "forfeitedUserId", forfeitedUserId != null ? forfeitedUserId : Optional.empty()
-        );
+        Map<String, Object> saveRequest = new HashMap<>();
+        saveRequest.put("matchId", currentMatchId);
+        saveRequest.put("roomId", roomId);
+        saveRequest.put("startedAt", (matchStartedAt != null ? matchStartedAt : Instant.now()).toString());
+        saveRequest.put("endedAt", Instant.now().toString());
+        saveRequest.put("endReason", endReason.name());
+        saveRequest.put("players", playerEntries);
+        if (forfeitedUserId != null) {
+            saveRequest.put("forfeitedUserId", forfeitedUserId);
+        }
 
         backendSubmitter.submitAsync(currentMatchId, saveRequest);
 

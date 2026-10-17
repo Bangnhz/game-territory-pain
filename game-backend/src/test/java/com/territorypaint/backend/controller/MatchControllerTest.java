@@ -58,6 +58,33 @@ class MatchControllerTest {
     }
 
     @Test
+    void testSaveMatch_OptionalEmptyPayloadTolerated() throws Exception {
+        when(matchService.saveMatch(any(SaveMatchRequest.class))).thenReturn(
+                SaveMatchResponse.newlySaved("550e8400-e29b-41d4-a716-446655440000", List.of())
+        );
+
+        String jsonWithOptional = """
+        {
+            "matchId": "550e8400-e29b-41d4-a716-446655440000",
+            "roomId": "660e8400-e29b-41d4-a716-446655440000",
+            "startedAt": "2026-10-17T10:00:00Z",
+            "endedAt": "2026-10-17T10:01:00Z",
+            "endReason": "TIMEOUT",
+            "players": [
+                {"userId": 1, "playerSlot": 1, "cellsOwned": 150},
+                {"userId": 2, "playerSlot": 2, "cellsOwned": 200}
+            ],
+            "forfeitedUserId": {"empty": true, "present": false}
+        }
+        """;
+        mockMvc.perform(post("/api/matches/save")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonWithOptional))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.matchId").value("550e8400-e29b-41d4-a716-446655440000"));
+    }
+
+    @Test
     void testSaveMatch_AlreadySavedOk() throws Exception {
         SaveMatchRequest request = createValidRequest();
         SaveMatchResponse response = SaveMatchResponse.alreadySaved(request.getMatchId(), List.of());

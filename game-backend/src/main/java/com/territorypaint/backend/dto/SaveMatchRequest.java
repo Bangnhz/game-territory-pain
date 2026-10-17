@@ -113,4 +113,19 @@ public class SaveMatchRequest {
     public void setForfeitedUserId(Long forfeitedUserId) {
         this.forfeitedUserId = forfeitedUserId;
     }
+
+    @com.fasterxml.jackson.annotation.JsonSetter("forfeitedUserId")
+    public void setForfeitedUserIdFromObject(Object value) {
+        if (value instanceof Number n) {
+            this.forfeitedUserId = n.longValue();
+        } else if (value instanceof String s && !s.isBlank()) {
+            try {
+                this.forfeitedUserId = Long.parseLong(s);
+            } catch (NumberFormatException e) {
+                this.forfeitedUserId = null;
+            }
+        } else {
+            this.forfeitedUserId = null;
+        }
+    }
 }
