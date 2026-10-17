@@ -10,10 +10,15 @@ import com.territorypaint.common.dto.SnapshotDTO;
 import com.territorypaint.common.payload.*;
 import com.territorypaint.common.protocol.ActionType;
 import com.territorypaint.common.protocol.Direction;
+import com.territorypaint.common.protocol.MatchEndReason;
+import com.territorypaint.common.protocol.MatchOutcome;
 
+import javafx.animation.FadeTransition;
+import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
@@ -21,14 +26,21 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.util.Duration;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
  * Authoritative 20x20 Game Board Canvas View & Keyboard Input Controller.
+ * Features Cyber-Paint Casual Arena styling and in-scene match finished dialog.
  * Requirements: 5.4-5.15, 6.1-6.18, 7.1-7.10, 8.1-8.16
  */
 public class GameView {
@@ -37,7 +49,9 @@ public class GameView {
     private static final double CELL_SIZE = 26.0;
 
     private final SceneManager sceneManager;
-    private final BorderPane root;
+    private final StackPane root;
+    private final BorderPane gameLayout;
+    private final StackPane modalOverlay;
     private final ObjectMapper objectMapper;
     private final Consumer<Message> messageListener;
 
@@ -51,11 +65,18 @@ public class GameView {
     private long lastMoveTimeMs = 0;
     private SnapshotDTO latestSnapshot;
     private String matchId;
-    private Dialog<ButtonType> resultDialog;
+
+    // Rematch countdown & modal elements
+    private ScheduledExecutorService resultCountdownScheduler;
+    private ScheduledFuture<?> resultCountdownTask;
+    private Label modalRematchStatusLabel;
+    private Button modalRematchButton;
 
     public GameView(SceneManager sceneManager) {
         this.sceneManager = sceneManager;
-        this.root = new BorderPane();
+        this.root = new StackPane();
+        this.gameLayout = new BorderPane();
+        this.modalOverlay = new StackPane();
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
         this.messageListener = this::handleServerMessage;
@@ -68,17 +89,21 @@ public class GameView {
         return root;
     }
 
+    private void loadStylesheet() {
+        try {
+            var cssUrl = getClass().getResource("/css/lobby.css");
+            if (cssUrl != null) {
+                root.getStylesheets().add(cssUrl.toExternalForm());
+            }
+        } catch (Exception ignored) {}
+    }
+
     public void resetView() {
         onMatchStart(null);
     }
 
     public void onMatchStart(MatchStartPayload payload) {
-        if (resultDialog != null) {
-            try {
-                resultDialog.close();
-            } catch (Exception ignored) {}
-            resultDialog = null;
-        }
+        closeResultModal();
 
         if (payload != null && payload.getSnapshot() != null) {
             this.latestSnapshot = payload.getSnapshot();
@@ -103,8 +128,10 @@ public class GameView {
     }
 
     private void initView() {
-        root.setPadding(new Insets(20));
+        loadStylesheet();
+
         root.setStyle("-fx-background-color: #0F172A;");
+        gameLayout.setPadding(new Insets(20));
 
         // Top HUD Header
         HBox hud = new HBox(30);
@@ -122,7 +149,7 @@ public class GameView {
         player2ScoreLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #FB923C;");
 
         hud.getChildren().addAll(player1ScoreLabel, timerLabel, player2ScoreLabel);
-        root.setTop(hud);
+        gameLayout.setTop(hud);
 
         // Center Game Board Canvas
         VBox centerBox = new VBox(15);
@@ -140,7 +167,15 @@ public class GameView {
         readyButton.setOnAction(e -> sendReady());
 
         centerBox.getChildren().addAll(statusLabel, canvas, readyButton);
-        root.setCenter(centerBox);
+        gameLayout.setCenter(centerBox);
+
+        // Modal Overlay for Match Finished dialog
+        modalOverlay.getStyleClass().add("modal-overlay");
+        modalOverlay.setAlignment(Pos.CENTER);
+        modalOverlay.setVisible(false);
+        modalOverlay.setManaged(false);
+
+        root.getChildren().addAll(gameLayout, modalOverlay);
 
         renderEmptyGrid();
     }
@@ -149,7 +184,13 @@ public class GameView {
         readyButton.setDisable(true);
         readyButton.setText("READY Submitted!");
         statusLabel.setText("Waiting for opponent to get READY...");
-        sceneManager.getTcpClient().send(Message.event(ActionType.READY, new ReadyPayload(matchId)));
+        UUID mId = null;
+        try {
+            if (matchId != null && !matchId.isBlank()) {
+                mId = UUID.fromString(matchId);
+            }
+        } catch (Exception ignored) {}
+        sceneManager.getTcpClient().send(Message.event(ActionType.READY, new ReadyPayload(mId)));
     }
 
     private void handleKeyPressed(KeyEvent event) {
@@ -222,17 +263,13 @@ public class GameView {
                 if (payload != null) {
                     Platform.runLater(() -> {
                         statusLabel.setText("Rematch accepted by: " + payload.getAcceptedUserIds());
+                        updateRematchStatus(payload);
                     });
                 }
             }
             case ROOM_CLOSED -> {
                 Platform.runLater(() -> {
-                    if (resultDialog != null) {
-                        try {
-                            resultDialog.close();
-                        } catch (Exception ignored) {}
-                        resultDialog = null;
-                    }
+                    closeResultModal();
                     sceneManager.showLobbyScene();
 
                     String reason = null;
@@ -311,45 +348,384 @@ public class GameView {
     }
 
     private void showMatchResultDialog(MatchResultPayload payload) {
-        Dialog<ButtonType> dialog = new Dialog<>();
-        this.resultDialog = dialog;
+        closeResultModal();
 
         Long currentUserId = sceneManager.getClientState().getUserId();
-        String resultText = "DRAW";
-        if (payload.getWinnerUserId() != null) {
-            resultText = payload.getWinnerUserId().equals(currentUserId) ? "YOU WIN! 🎉" : "YOU LOST 😞";
+        Long winnerUserId = payload.getWinnerUserId();
+        boolean isWinner = winnerUserId != null && winnerUserId.equals(currentUserId);
+        boolean isLoser = winnerUserId != null && !winnerUserId.equals(currentUserId);
+        boolean isDraw = winnerUserId == null;
+
+        // Play feedback sound
+        SoundManager.getInstance().playClickSfx();
+
+        VBox dialogCard = new VBox(16);
+        dialogCard.setAlignment(Pos.CENTER);
+        dialogCard.setMaxWidth(520);
+        dialogCard.setPadding(new Insets(24, 28, 24, 28));
+
+        String cardThemeClass = isWinner ? "result-card-victory" : (isLoser ? "result-card-defeat" : "result-card-draw");
+        dialogCard.getStyleClass().addAll("modal-card", cardThemeClass);
+
+        // 1. Header category tag & End reason
+        HBox topMetaBox = new HBox(12);
+        topMetaBox.setAlignment(Pos.CENTER);
+
+        Label arenaTag = new Label("🏁 MATCH COMPLETED");
+        arenaTag.setStyle("-fx-text-fill: #38BDF8; -fx-font-size: 11px; -fx-font-weight: 800;");
+
+        String reasonText;
+        if (payload.getEndReason() == MatchEndReason.TIMEOUT) {
+            reasonText = "⏱️ Time Limit (60s)";
+        } else if (payload.getEndReason() == MatchEndReason.FORFEIT) {
+            reasonText = "⚡ Opponent Forfeit / Disconnected";
+        } else {
+            reasonText = "🏁 " + (payload.getEndReason() != null ? payload.getEndReason() : "Finished");
         }
+        Label reasonBadge = new Label(reasonText);
+        reasonBadge.getStyleClass().add("result-reason-badge");
 
-        dialog.setTitle("Match Finished");
-        dialog.setHeaderText(resultText + " (Reason: " + payload.getEndReason() + ")");
+        topMetaBox.getChildren().addAll(arenaTag, reasonBadge);
 
-        VBox contentBox = new VBox(10);
-        contentBox.setPadding(new Insets(15));
+        // 2. Banner Title & Subtitle
+        VBox titleBox = new VBox(4);
+        titleBox.setAlignment(Pos.CENTER);
 
+        Label titleLabel = new Label();
+        titleLabel.setStyle("-fx-font-size: 32px; -fx-font-weight: 900;");
+
+        Label subtitleLabel = new Label();
+        subtitleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600;");
+
+        if (isWinner) {
+            titleLabel.setText("🏆 VICTORY!");
+            titleLabel.setStyle(titleLabel.getStyle() + " -fx-text-fill: #34D399; -fx-effect: dropshadow(three-pass-box, rgba(52, 211, 153, 0.6), 16, 0, 0, 0);");
+            subtitleLabel.setText("Territory Dominated! Exceptional battlefield control.");
+            subtitleLabel.setStyle(subtitleLabel.getStyle() + " -fx-text-fill: #A7F3D0;");
+        } else if (isLoser) {
+            titleLabel.setText("💀 DEFEAT");
+            titleLabel.setStyle(titleLabel.getStyle() + " -fx-text-fill: #F87171; -fx-effect: dropshadow(three-pass-box, rgba(248, 113, 113, 0.6), 16, 0, 0, 0);");
+            subtitleLabel.setText("Outpainted this round! Regroup and challenge again.");
+            subtitleLabel.setStyle(subtitleLabel.getStyle() + " -fx-text-fill: #FECACA;");
+        } else {
+            titleLabel.setText("🤝 DRAW GAME");
+            titleLabel.setStyle(titleLabel.getStyle() + " -fx-text-fill: #38BDF8; -fx-effect: dropshadow(three-pass-box, rgba(56, 189, 248, 0.6), 16, 0, 0, 0);");
+            subtitleLabel.setText("Deadlock! Both painters demonstrated equal prowess.");
+            subtitleLabel.setStyle(subtitleLabel.getStyle() + " -fx-text-fill: #BAE6FD;");
+        }
+        titleBox.getChildren().addAll(titleLabel, subtitleLabel);
+
+        // 3. Head-to-Head Comparison
+        PlayerResultDTO p1Result = null;
+        PlayerResultDTO p2Result = null;
         if (payload.getPlayerResults() != null) {
             for (PlayerResultDTO pr : payload.getPlayerResults()) {
-                contentBox.getChildren().add(new Label(
-                        "Player " + pr.getSlot() + " (ID: " + pr.getUserId() + "): " +
-                                pr.getCellsOwned() + " cells | Outcome: " + pr.getOutcome() + " (+" + pr.getRankDelta() + " rating)"
-                ));
+                if (pr.getSlot() == 1) p1Result = pr;
+                else if (pr.getSlot() == 2) p2Result = pr;
             }
         }
 
-        contentBox.getChildren().add(new Label("Persistence Status: " + payload.getPersistenceStatus()));
-
-        ButtonType rematchButton = new ButtonType("Rematch", ButtonBar.ButtonData.OK_DONE);
-        ButtonType exitButton = new ButtonType("Exit to Lobby", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().addAll(rematchButton, exitButton);
-        dialog.getDialogPane().setContent(contentBox);
-
-        dialog.showAndWait().ifPresent(res -> {
-            if (res == rematchButton) {
-                sceneManager.getTcpClient().send(Message.event(ActionType.REMATCH, Map.of("accept", true)));
-                statusLabel.setText("Rematch requested. Waiting for opponent...");
-            } else {
-                sceneManager.getTcpClient().send(Message.event(ActionType.EXIT_MATCH, Map.of()));
-                sceneManager.showLobbyScene();
+        String p1Name = "Player 1";
+        String p2Name = "Player 2";
+        if (latestSnapshot != null && latestSnapshot.getPlayers() != null) {
+            for (var p : latestSnapshot.getPlayers()) {
+                if (p.getSlot() == 1 && p.getUsername() != null && !p.getUsername().isBlank()) {
+                    p1Name = p.getUsername();
+                } else if (p.getSlot() == 2 && p.getUsername() != null && !p.getUsername().isBlank()) {
+                    p2Name = p.getUsername();
+                }
             }
+        }
+
+        boolean p1IsMe = (p1Result != null && currentUserId != null && currentUserId == p1Result.getUserId());
+        boolean p2IsMe = (p2Result != null && currentUserId != null && currentUserId == p2Result.getUserId());
+        if (!p1IsMe && !p2IsMe && latestSnapshot != null && latestSnapshot.getPlayers() != null && currentUserId != null) {
+            for (var p : latestSnapshot.getPlayers()) {
+                if (p.getUserId() == currentUserId) {
+                    if (p.getSlot() == 1) p1IsMe = true;
+                    else if (p.getSlot() == 2) p2IsMe = true;
+                }
+            }
+        }
+
+        int p1Cells = p1Result != null ? p1Result.getCellsOwned() : 0;
+        int p2Cells = p2Result != null ? p2Result.getCellsOwned() : 0;
+        double p1Pct = (p1Cells * 100.0) / 400.0;
+        double p2Pct = (p2Cells * 100.0) / 400.0;
+        boolean p1Winner = winnerUserId != null && p1Result != null && winnerUserId == p1Result.getUserId();
+        boolean p2Winner = winnerUserId != null && p2Result != null && winnerUserId == p2Result.getUserId();
+
+        VBox p1Box = createPlayerResultBox(1, p1Name, p1IsMe, p1Cells, p1Pct, p1Winner, p1Result != null ? p1Result.getRankDelta() : 0);
+        VBox p2Box = createPlayerResultBox(2, p2Name, p2IsMe, p2Cells, p2Pct, p2Winner, p2Result != null ? p2Result.getRankDelta() : 0);
+
+        Label vsBadge = new Label("VS");
+        vsBadge.getStyleClass().add("result-vs-badge");
+
+        HBox versusRow = new HBox(12);
+        versusRow.setAlignment(Pos.CENTER);
+        HBox.setHgrow(p1Box, Priority.ALWAYS);
+        HBox.setHgrow(p2Box, Priority.ALWAYS);
+        p1Box.setMaxWidth(Double.MAX_VALUE);
+        p2Box.setMaxWidth(Double.MAX_VALUE);
+        versusRow.getChildren().addAll(p1Box, vsBadge, p2Box);
+
+        // 4. Territory Conquest Progress Bar
+        VBox conquestBox = new VBox(6);
+        conquestBox.setAlignment(Pos.CENTER);
+        conquestBox.setPadding(new Insets(4, 0, 4, 0));
+
+        HBox conquestBar = new HBox(2);
+        conquestBar.setAlignment(Pos.CENTER_LEFT);
+        conquestBar.getStyleClass().add("result-bar-container");
+        conquestBar.setPrefHeight(16);
+        conquestBar.setMaxWidth(460);
+
+        double totalBarWidth = 450.0;
+        double w1 = Math.max(p1Cells > 0 ? 8 : 0, totalBarWidth * (p1Cells / 400.0));
+        double w2 = Math.max(p2Cells > 0 ? 8 : 0, totalBarWidth * (p2Cells / 400.0));
+        double wNeutral = Math.max(0, totalBarWidth - w1 - w2);
+
+        Region blueBar = new Region();
+        blueBar.setStyle("-fx-background-color: #2672D6; -fx-background-radius: 6 0 0 6;");
+        blueBar.setPrefWidth(w1);
+        blueBar.setPrefHeight(10);
+
+        Region neutralBar = new Region();
+        neutralBar.setStyle("-fx-background-color: #334155;");
+        neutralBar.setPrefWidth(wNeutral);
+        neutralBar.setPrefHeight(10);
+
+        Region orangeBar = new Region();
+        orangeBar.setStyle("-fx-background-color: #F28C28; -fx-background-radius: 0 6 6 0;");
+        orangeBar.setPrefWidth(w2);
+        orangeBar.setPrefHeight(10);
+
+        conquestBar.getChildren().addAll(blueBar, neutralBar, orangeBar);
+
+        HBox legendBox = new HBox(18);
+        legendBox.setAlignment(Pos.CENTER);
+        Label blueLegend = new Label(String.format("🟦 Blue: %.1f%%", p1Pct));
+        blueLegend.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #38BDF8;");
+
+        double neutralPct = Math.max(0, 100.0 - p1Pct - p2Pct);
+        Label neutralLegend = new Label(String.format("⬛ Neutral: %.1f%%", neutralPct));
+        neutralLegend.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: #64748B;");
+
+        Label orangeLegend = new Label(String.format("🟧 Orange: %.1f%%", p2Pct));
+        orangeLegend.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #FB923C;");
+
+        legendBox.getChildren().addAll(blueLegend, neutralLegend, orangeLegend);
+        conquestBox.getChildren().addAll(conquestBar, legendBox);
+
+        // 5. Rematch Countdown & Status
+        VBox rematchSection = new VBox(6);
+        rematchSection.setAlignment(Pos.CENTER);
+        rematchSection.setPadding(new Insets(4, 0, 0, 0));
+
+        ProgressBar countdownBar = new ProgressBar(1.0);
+        countdownBar.getStyleClass().add("modal-countdown-bar");
+        countdownBar.setPrefWidth(450);
+        countdownBar.setPrefHeight(6);
+
+        Label countdownLabel = new Label("⏳ Rematch window closes in 15s...");
+        countdownLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #94A3B8;");
+
+        modalRematchStatusLabel = new Label("Click Rematch to battle again with the same opponent.");
+        modalRematchStatusLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 600; -fx-text-fill: #CBD5E1;");
+
+        rematchSection.getChildren().addAll(countdownBar, countdownLabel, modalRematchStatusLabel);
+
+        // 6. Action Buttons
+        HBox buttonBox = new HBox(14);
+        buttonBox.setAlignment(Pos.CENTER);
+        buttonBox.setPadding(new Insets(6, 0, 0, 0));
+
+        modalRematchButton = new Button("⚔️ REQUEST REMATCH");
+        modalRematchButton.getStyleClass().add("btn-result-rematch");
+        addScaleHoverAnimation(modalRematchButton, 1.04);
+
+        Button exitButton = new Button("🚪 EXIT TO LOBBY");
+        exitButton.getStyleClass().add("btn-result-exit");
+        addScaleHoverAnimation(exitButton, 1.04);
+
+        modalRematchButton.setOnAction(e -> {
+            SoundManager.getInstance().playClickSfx();
+            modalRematchButton.setDisable(true);
+            modalRematchButton.setText("⏳ REMATCH REQUESTED");
+            modalRematchStatusLabel.setText("Rematch requested! Waiting for opponent to accept...");
+            modalRematchStatusLabel.setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: bold;");
+            sceneManager.getTcpClient().send(Message.event(ActionType.REMATCH, Map.of("accept", true)));
+        });
+
+        exitButton.setOnAction(e -> {
+            SoundManager.getInstance().playClickSfx();
+            closeResultModal();
+            sceneManager.getTcpClient().send(Message.event(ActionType.EXIT_MATCH, Map.of()));
+            sceneManager.showLobbyScene();
+        });
+
+        buttonBox.getChildren().addAll(modalRematchButton, exitButton);
+
+        // Assemble card
+        dialogCard.getChildren().addAll(topMetaBox, titleBox, versusRow, conquestBox, rematchSection, buttonBox);
+
+        // 7. Rematch 15-second Countdown Scheduler
+        long deadlineMs = System.currentTimeMillis() + 15000;
+        resultCountdownScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "ResultCountdownThread");
+            t.setDaemon(true);
+            return t;
+        });
+        resultCountdownTask = resultCountdownScheduler.scheduleAtFixedRate(() -> {
+            long remainingMs = deadlineMs - System.currentTimeMillis();
+            if (remainingMs <= 0) {
+                cancelResultCountdown();
+                Platform.runLater(() -> {
+                    if (modalOverlay.isVisible()) {
+                        closeResultModal();
+                        sceneManager.getTcpClient().send(Message.event(ActionType.EXIT_MATCH, Map.of()));
+                        sceneManager.showLobbyScene();
+                    }
+                });
+            } else {
+                double progress = Math.max(0.0, (double) remainingMs / 15000.0);
+                int seconds = (int) Math.ceil(remainingMs / 1000.0);
+                Platform.runLater(() -> {
+                    countdownBar.setProgress(progress);
+                    if (seconds <= 5 && !countdownBar.getStyleClass().contains("modal-countdown-bar-danger")) {
+                        countdownBar.getStyleClass().add("modal-countdown-bar-danger");
+                    }
+                    countdownLabel.setText("⏳ Rematch window closes in " + seconds + "s...");
+                });
+            }
+        }, 0, 100, TimeUnit.MILLISECONDS);
+
+        // 8. Entrance Animation
+        modalOverlay.getChildren().setAll(dialogCard);
+        modalOverlay.setVisible(true);
+        modalOverlay.setManaged(true);
+
+        dialogCard.setScaleX(0.85);
+        dialogCard.setScaleY(0.85);
+        dialogCard.setOpacity(0.0);
+
+        ScaleTransition st = new ScaleTransition(Duration.millis(320), dialogCard);
+        st.setToX(1.0);
+        st.setToY(1.0);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(320), dialogCard);
+        ft.setToValue(1.0);
+
+        st.play();
+        ft.play();
+    }
+
+    private VBox createPlayerResultBox(int slot, String name, boolean isMe, int cells, double pct, boolean isWinner, int rankDelta) {
+        VBox box = new VBox(8);
+        box.setAlignment(Pos.CENTER_LEFT);
+        box.getStyleClass().add(slot == 1 ? "result-player-box-p1" : "result-player-box-p2");
+
+        // Top row: circle + name + [YOU] + (WINNER badge)
+        HBox topRow = new HBox(8);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        Circle colorCircle = new Circle(6, slot == 1 ? Color.web("#38BDF8") : Color.web("#FB923C"));
+        Label nameLabel = new Label(name);
+        nameLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 800; -fx-text-fill: #F8FAFC;");
+
+        topRow.getChildren().addAll(colorCircle, nameLabel);
+
+        if (isMe) {
+            Label meBadge = new Label("YOU");
+            meBadge.setStyle(slot == 1
+                    ? "-fx-background-color: rgba(56, 189, 248, 0.25); -fx-text-fill: #38BDF8; -fx-font-weight: 900; -fx-font-size: 10px; -fx-padding: 2 6; -fx-background-radius: 6;"
+                    : "-fx-background-color: rgba(251, 146, 60, 0.25); -fx-text-fill: #FB923C; -fx-font-weight: 900; -fx-font-size: 10px; -fx-padding: 2 6; -fx-background-radius: 6;");
+            topRow.getChildren().add(meBadge);
+        }
+
+        if (isWinner) {
+            Label winBadge = new Label("👑 WINNER");
+            winBadge.getStyleClass().add("result-winner-badge");
+            topRow.getChildren().add(winBadge);
+        }
+
+        // Center row: Score & %
+        HBox scoreRow = new HBox(8);
+        scoreRow.setAlignment(Pos.BASELINE_LEFT);
+
+        Label cellCountLabel = new Label(String.valueOf(cells));
+        cellCountLabel.setStyle("-fx-font-size: 26px; -fx-font-weight: 900; -fx-text-fill: #FFFFFF;");
+
+        Label cellUnitLabel = new Label("cells " + String.format("(%.1f%%)", pct));
+        cellUnitLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #94A3B8;");
+
+        scoreRow.getChildren().addAll(cellCountLabel, cellUnitLabel);
+
+        // Bottom row: LP Delta badge
+        Label lpBadge = new Label();
+        if (rankDelta >= 0) {
+            lpBadge.setText("+" + rankDelta + " LP");
+            lpBadge.getStyleClass().add("result-lp-win");
+        } else {
+            lpBadge.setText(rankDelta + " LP");
+            lpBadge.getStyleClass().add("result-lp-loss");
+        }
+
+        box.getChildren().addAll(topRow, scoreRow, lpBadge);
+        return box;
+    }
+
+    private void updateRematchStatus(RematchStatusPayload payload) {
+        if (payload == null || modalRematchStatusLabel == null) return;
+        int count = payload.getAcceptedUserIds() != null ? payload.getAcceptedUserIds().size() : 0;
+        Long myId = sceneManager.getClientState().getUserId();
+        boolean iAccepted = payload.getAcceptedUserIds() != null && myId != null && payload.getAcceptedUserIds().contains(myId);
+
+        if (count == 1) {
+            if (iAccepted) {
+                modalRematchStatusLabel.setText("You requested rematch! Waiting for opponent...");
+                modalRematchStatusLabel.setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+            } else {
+                modalRematchStatusLabel.setText("Opponent wants a rematch! Click Rematch to accept!");
+                modalRematchStatusLabel.setStyle("-fx-text-fill: #FBBF24; -fx-font-weight: bold;");
+            }
+        } else if (count >= 2) {
+            modalRematchStatusLabel.setText("Both players accepted! Starting new match...");
+            modalRematchStatusLabel.setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+        }
+    }
+
+    private void closeResultModal() {
+        cancelResultCountdown();
+        modalOverlay.getChildren().clear();
+        modalOverlay.setVisible(false);
+        modalOverlay.setManaged(false);
+    }
+
+    private void cancelResultCountdown() {
+        if (resultCountdownTask != null && !resultCountdownTask.isDone()) {
+            resultCountdownTask.cancel(true);
+            resultCountdownTask = null;
+        }
+        if (resultCountdownScheduler != null && !resultCountdownScheduler.isShutdown()) {
+            resultCountdownScheduler.shutdownNow();
+            resultCountdownScheduler = null;
+        }
+    }
+
+    private void addScaleHoverAnimation(Node node, double scaleTo) {
+        if (node == null) return;
+        node.setOnMouseEntered(e -> {
+            ScaleTransition st = new ScaleTransition(Duration.millis(120), node);
+            st.setToX(scaleTo);
+            st.setToY(scaleTo);
+            st.play();
+        });
+        node.setOnMouseExited(e -> {
+            ScaleTransition st = new ScaleTransition(Duration.millis(120), node);
+            st.setToX(1.0);
+            st.setToY(1.0);
+            st.play();
         });
     }
 }
