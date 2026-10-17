@@ -69,4 +69,17 @@ public class UserController {
     public ResponseEntity<LeaderboardResponse> getLeaderboard(int page, int size) {
         return getLeaderboard(null, page, size);
     }
+
+    /**
+     * Endpoint to clean up sample/mock test users.
+     */
+    @PostMapping("/cleanup-test-data")
+    public ResponseEntity<java.util.Map<String, Object>> cleanupTestData() {
+        int deleted = userService.cleanupTestUsers();
+        return ResponseEntity.ok(java.util.Map.of(
+                "success", true,
+                "message", "Cleaned up " + deleted + " test users successfully",
+                "deletedCount", deleted
+        ));
+    }
 }

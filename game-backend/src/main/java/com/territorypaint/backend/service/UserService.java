@@ -27,6 +27,9 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserStatsRepository userStatsRepository;
     
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    
     public UserService(UserRepository userRepository, UserStatsRepository userStatsRepository) {
         this.userRepository = userRepository;
         this.userStatsRepository = userStatsRepository;
@@ -168,5 +171,31 @@ public class UserService {
                 userPage.getTotalPages(),
                 currentUserEntry
         );
+    }
+
+    /**
+     * Delete test and sample users from the database.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int cleanupTestUsers() {
+        if (jdbcTemplate == null) return 0;
+        jdbcTemplate.execute("""
+            DELETE FROM MATCH_HISTORY 
+            WHERE user_id IN (SELECT id FROM (SELECT id FROM USERS WHERE LOWER(username) LIKE 'testuser%' OR LOWER(username) LIKE 'testusser%' OR LOWER(username) LIKE 'test\\_%' OR LOWER(username) = 'test') AS t1)
+               OR opponent_id IN (SELECT id FROM (SELECT id FROM USERS WHERE LOWER(username) LIKE 'testuser%' OR LOWER(username) LIKE 'testusser%' OR LOWER(username) LIKE 'test\\_%' OR LOWER(username) = 'test') AS t2);
+        """);
+        jdbcTemplate.execute("""
+            DELETE FROM MATCHES 
+            WHERE winner_user_id IN (SELECT id FROM (SELECT id FROM USERS WHERE LOWER(username) LIKE 'testuser%' OR LOWER(username) LIKE 'testusser%' OR LOWER(username) LIKE 'test\\_%' OR LOWER(username) = 'test') AS t1)
+               OR forfeited_user_id IN (SELECT id FROM (SELECT id FROM USERS WHERE LOWER(username) LIKE 'testuser%' OR LOWER(username) LIKE 'testusser%' OR LOWER(username) LIKE 'test\\_%' OR LOWER(username) = 'test') AS t2);
+        """);
+        jdbcTemplate.execute("""
+            DELETE FROM USER_STATS 
+            WHERE user_id IN (SELECT id FROM (SELECT id FROM USERS WHERE LOWER(username) LIKE 'testuser%' OR LOWER(username) LIKE 'testusser%' OR LOWER(username) LIKE 'test\\_%' OR LOWER(username) = 'test') AS t);
+        """);
+        return jdbcTemplate.update("""
+            DELETE FROM USERS 
+            WHERE LOWER(username) LIKE 'testuser%' OR LOWER(username) LIKE 'testusser%' OR LOWER(username) LIKE 'test\\_%' OR LOWER(username) = 'test';
+        """);
     }
 }

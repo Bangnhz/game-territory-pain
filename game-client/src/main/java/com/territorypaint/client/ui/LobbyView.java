@@ -579,6 +579,11 @@ public class LobbyView {
                             if (currentUsername != null && !currentUsername.isBlank() && currentUsername.equalsIgnoreCase(p.getUsername())) {
                                 continue;
                             }
+                            // Exclude mock/test accounts (testuser...)
+                            String uname = p.getUsername() != null ? p.getUsername().toLowerCase().trim() : "";
+                            if (uname.startsWith("testuser") || uname.startsWith("testusser") || uname.startsWith("test_") || uname.equals("test")) {
+                                continue;
+                            }
                             playerList.add(p);
                         }
                         sceneManager.getClientState().setOnlinePlayers(payload.getPlayers());

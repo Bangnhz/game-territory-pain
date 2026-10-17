@@ -282,16 +282,35 @@ public class LeaderboardView {
                 }
 
                 if (entries != null) {
-                    list.setAll(entries);
-                    int total = entries.size();
-                    boolean hasAppendedUser = entries.stream().anyMatch(e -> {
+                    // Filter out sample / mock users (testuser, testusser, test_...)
+                    List<Map<String, Object>> cleanEntries = new java.util.ArrayList<>();
+                    int rankSeq = 1;
+                    for (Map<String, Object> entry : entries) {
+                        Object uname = entry.get("username");
+                        if (uname != null) {
+                            String name = uname.toString().toLowerCase().trim();
+                            if (name.startsWith("testuser") || name.startsWith("testusser") || name.startsWith("test_") || name.equals("test")) {
+                                continue;
+                            }
+                        }
+                        Map<String, Object> copy = new java.util.HashMap<>(entry);
+                        Object r = copy.get("rank");
+                        if (r instanceof Number num && num.intValue() <= 100) {
+                            copy.put("rank", rankSeq++);
+                        }
+                        cleanEntries.add(copy);
+                    }
+
+                    list.setAll(cleanEntries);
+                    int total = cleanEntries.size();
+                    boolean hasAppendedUser = cleanEntries.stream().anyMatch(e -> {
                         Object r = e.get("rank");
                         return r instanceof Number && ((Number) r).intValue() > 100;
                     });
 
                     if (hasAppendedUser) {
                         pageLabel.setText(String.format("Top 100 Server Ranking + Your Rank (#%s) (Total: %d)",
-                                entries.get(entries.size() - 1).get("rank"), total));
+                                cleanEntries.get(cleanEntries.size() - 1).get("rank"), total));
                     } else {
                         pageLabel.setText(String.format("Showing %d players (Top 100 Server Ranking)", total));
                     }

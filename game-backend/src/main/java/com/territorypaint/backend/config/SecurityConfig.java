@@ -57,7 +57,7 @@ public class SecurityConfig {
             // Configure authorization rules
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints - no authentication required
-                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                .requestMatchers("/api/auth/register", "/api/auth/login", "/api/users/cleanup-test-data").permitAll()
                 
                 // Internal endpoints - service key authentication required
                 .requestMatchers("/api/internal/**", "/api/matches/save").hasRole("SERVICE")
