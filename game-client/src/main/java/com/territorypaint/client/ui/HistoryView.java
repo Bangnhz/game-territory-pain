@@ -72,7 +72,7 @@ public class HistoryView {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         Label placeholder = new Label("No matches played yet.\nPlay a match to see your battle history!");
-        placeholder.setStyle("-fx-text-fill: #94A3B8; -fx-font-size: 14px; -fx-alignment: center; -fx-text-alignment: center;");
+        placeholder.setStyle("-fx-text-fill: #FFFFFF; -fx-font-size: 14px; -fx-alignment: center; -fx-text-alignment: center; -fx-font-weight: 600;");
         table.setPlaceholder(placeholder);
 
         TableColumn<Map<String, Object>, String> idCol = new TableColumn<>("Match ID");
@@ -85,6 +85,19 @@ public class HistoryView {
             }
             return new SimpleStringProperty("-");
         });
+        idCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 700; -fx-font-size: 13px;");
+                }
+            }
+        });
 
         TableColumn<Map<String, Object>, String> opponentCol = new TableColumn<>("Opponent");
         opponentCol.setPrefWidth(140);
@@ -93,6 +106,19 @@ public class HistoryView {
             if (val == null) val = data.getValue().get("opponentName");
             if (val == null) val = data.getValue().get("opponent");
             return new SimpleStringProperty(val != null ? val.toString() : "Unknown");
+        });
+        opponentCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 800; -fx-font-size: 13px;");
+                }
+            }
         });
 
         TableColumn<Map<String, Object>, String> outcomeCol = new TableColumn<>("Outcome");
@@ -112,16 +138,16 @@ public class HistoryView {
                 } else {
                     if ("WIN".equalsIgnoreCase(item)) {
                         setText("🏆 VICTORY");
-                        setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+                        setStyle("-fx-text-fill: #34D399; -fx-font-weight: 800; -fx-font-size: 13px;");
                     } else if ("LOSS".equalsIgnoreCase(item)) {
                         setText("💀 DEFEAT");
-                        setStyle("-fx-text-fill: #F87171; -fx-font-weight: bold;");
+                        setStyle("-fx-text-fill: #F87171; -fx-font-weight: 800; -fx-font-size: 13px;");
                     } else if ("DRAW".equalsIgnoreCase(item)) {
                         setText("🤝 DRAW");
-                        setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: bold;");
+                        setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: 800; -fx-font-size: 13px;");
                     } else {
                         setText(item);
-                        setStyle("");
+                        setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 700; -fx-font-size: 13px;");
                     }
                 }
             }
@@ -141,6 +167,19 @@ public class HistoryView {
                 return new SimpleStringProperty(my + " cells");
             }
             return new SimpleStringProperty("0 - 0");
+        });
+        scoreCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 800; -fx-font-size: 13px;");
+                }
+            }
         });
 
         TableColumn<Map<String, Object>, String> deltaCol = new TableColumn<>("Rank Delta");
@@ -165,11 +204,11 @@ public class HistoryView {
                 } else {
                     setText(item);
                     if (item.startsWith("+") && !item.equals("+0")) {
-                        setStyle("-fx-text-fill: #34D399; -fx-font-weight: bold;");
+                        setStyle("-fx-text-fill: #34D399; -fx-font-weight: 800; -fx-font-size: 13px;");
                     } else if (item.startsWith("-")) {
-                        setStyle("-fx-text-fill: #F87171; -fx-font-weight: bold;");
+                        setStyle("-fx-text-fill: #F87171; -fx-font-weight: 800; -fx-font-size: 13px;");
                     } else {
-                        setStyle("-fx-text-fill: #94A3B8;");
+                        setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 700; -fx-font-size: 13px;");
                     }
                 }
             }
@@ -181,6 +220,19 @@ public class HistoryView {
             Object reason = data.getValue().get("endReason");
             if (reason == null) reason = data.getValue().get("reason");
             return new SimpleStringProperty(reason != null ? reason.toString() : "TIMEOUT");
+        });
+        reasonCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 700; -fx-font-size: 13px;");
+                }
+            }
         });
 
         TableColumn<Map<String, Object>, String> dateCol = new TableColumn<>("Played At");
@@ -198,6 +250,19 @@ public class HistoryView {
             }
             return new SimpleStringProperty("-");
         });
+        dateCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 600; -fx-font-size: 13px;");
+                }
+            }
+        });
 
         table.getColumns().addAll(idCol, opponentCol, outcomeCol, scoreCol, deltaCol, reasonCol, dateCol);
         root.setCenter(table);
@@ -214,7 +279,7 @@ public class HistoryView {
         });
 
         pageLabel = new Label("Page 1 of 1");
-        pageLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #94A3B8;");
+        pageLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #FFFFFF; -fx-font-weight: bold;");
 
         nextBtn = new Button("Next");
         nextBtn.getStyleClass().add("button-secondary");
