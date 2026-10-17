@@ -15,6 +15,14 @@ public class ReadyPayload {
     public ReadyPayload(UUID matchId) {
         this.matchId = matchId;
     }
+
+    public ReadyPayload(String matchId) {
+        if (matchId != null && !matchId.isBlank()) {
+            try {
+                this.matchId = UUID.fromString(matchId);
+            } catch (Exception ignored) {}
+        }
+    }
     
     public UUID getMatchId() {
         return matchId;

@@ -124,12 +124,17 @@ public class LobbyCoordinator {
                 Session challenger = sessionManager.getSessionByUserId(challenge.getChallengerUserId());
                 if (challenger == null || challenger.getStatus() != PlayerStatus.IDLE || target.getStatus() != PlayerStatus.IDLE) {
                     sendError(target, "PLAYER_UNAVAILABLE", "One of the players is no longer available");
+                    if (challenger != null) challenger.setPendingChallengeId(null);
+                    target.setPendingChallengeId(null);
                     challengeManager.releaseChallenge(challenge.getChallengeId());
+                    sessionManager.broadcastOnlineList();
                     return;
                 }
 
                 // Mark challenge accepted
                 challenge.setStatus(Challenge.Status.ACCEPTED);
+                challenger.setPendingChallengeId(null);
+                target.setPendingChallengeId(null);
                 challengeManager.releaseChallenge(challenge.getChallengeId());
 
                 // Create GameRoom atomically (Requirement 14.5)
@@ -140,7 +145,10 @@ public class LobbyCoordinator {
                     sendError(target, "SERVER_BUSY", "Room capacity reached");
                     sendError(challenger, "SERVER_BUSY", "Room capacity reached");
                     challenger.setStatus(PlayerStatus.IDLE);
+                    challenger.setPendingChallengeId(null);
                     target.setStatus(PlayerStatus.IDLE);
+                    target.setPendingChallengeId(null);
+                    sessionManager.broadcastOnlineList();
                     return;
                 }
 

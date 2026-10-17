@@ -76,11 +76,19 @@ public class SceneManager {
     }
 
     public void showGameScene() {
+        showGameScene(null);
+    }
+
+    public void showGameScene(com.territorypaint.common.payload.MatchStartPayload payload) {
         SoundManager.getInstance().stopLobbyBgm();
         if (gameView == null) {
             gameView = new GameView(this);
         }
-        gameView.resetView();
+        if (payload != null) {
+            gameView.onMatchStart(payload);
+        } else {
+            gameView.resetView();
+        }
         setScene(gameView.getView());
     }
 

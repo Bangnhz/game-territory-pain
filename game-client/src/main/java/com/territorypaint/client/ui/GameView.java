@@ -69,13 +69,37 @@ public class GameView {
     }
 
     public void resetView() {
-        this.matchId = sceneManager.getClientState().getCurrentMatchId();
-        this.latestSnapshot = null;
+        onMatchStart(null);
+    }
+
+    public void onMatchStart(MatchStartPayload payload) {
+        if (resultDialog != null) {
+            try {
+                resultDialog.close();
+            } catch (Exception ignored) {}
+            resultDialog = null;
+        }
+
+        if (payload != null && payload.getSnapshot() != null) {
+            this.latestSnapshot = payload.getSnapshot();
+            this.matchId = payload.getSnapshot().getMatchId().toString();
+            sceneManager.getClientState().setCurrentMatchId(matchId);
+            sceneManager.getClientState().setCurrentSnapshot(latestSnapshot);
+        } else {
+            this.matchId = sceneManager.getClientState().getCurrentMatchId();
+        }
+
+        this.readyButton.setVisible(true);
         this.readyButton.setDisable(false);
         this.readyButton.setText("Click READY to Start");
         this.statusLabel.setText("Waiting for both players to click READY...");
         this.timerLabel.setText("60s");
-        renderEmptyGrid();
+
+        if (latestSnapshot != null) {
+            renderSnapshot(latestSnapshot);
+        } else {
+            renderEmptyGrid();
+        }
     }
 
     private void initView() {
@@ -125,7 +149,7 @@ public class GameView {
         readyButton.setDisable(true);
         readyButton.setText("READY Submitted!");
         statusLabel.setText("Waiting for opponent to get READY...");
-        sceneManager.getTcpClient().send(Message.event(ActionType.READY, Map.of("matchId", matchId != null ? matchId : "")));
+        sceneManager.getTcpClient().send(Message.event(ActionType.READY, new ReadyPayload(matchId)));
     }
 
     private void handleKeyPressed(KeyEvent event) {
@@ -158,13 +182,8 @@ public class GameView {
         switch (msg.getActionType()) {
             case MATCH_START -> {
                 MatchStartPayload payload = objectMapper.convertValue(msg.getPayload(), MatchStartPayload.class);
-                if (payload != null && payload.getSnapshot() != null) {
-                    Platform.runLater(() -> {
-                        this.latestSnapshot = payload.getSnapshot();
-                        this.matchId = payload.getSnapshot().getMatchId().toString();
-                        sceneManager.getClientState().setCurrentMatchId(matchId);
-                        renderSnapshot(latestSnapshot);
-                    });
+                if (payload != null) {
+                    Platform.runLater(() -> onMatchStart(payload));
                 }
             }
             case MATCH_BEGIN -> {
@@ -208,8 +227,24 @@ public class GameView {
             }
             case ROOM_CLOSED -> {
                 Platform.runLater(() -> {
-                    if (resultDialog != null) resultDialog.close();
+                    if (resultDialog != null) {
+                        try {
+                            resultDialog.close();
+                        } catch (Exception ignored) {}
+                        resultDialog = null;
+                    }
                     sceneManager.showLobbyScene();
+
+                    String reason = null;
+                    if (msg.getPayload() instanceof Map<?, ?> map) {
+                        Object r = map.get("reason");
+                        if (r != null) reason = r.toString();
+                    }
+                    if ("READY_TIMEOUT".equalsIgnoreCase(reason)) {
+                        sceneManager.showAlert("Match Cancelled", "The match was cancelled because one or both players did not click READY in time (10s timeout).", Alert.AlertType.INFORMATION);
+                    } else if ("PLAYER_LEFT".equalsIgnoreCase(reason) || "DISCONNECT".equalsIgnoreCase(reason) || "FORFEIT".equalsIgnoreCase(reason)) {
+                        sceneManager.showAlert("Match Ended", "Opponent left the match or disconnected.", Alert.AlertType.INFORMATION);
+                    }
                 });
             }
         }

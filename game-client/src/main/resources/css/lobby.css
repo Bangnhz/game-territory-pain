@@ -348,3 +348,121 @@
     -fx-padding: 0px;
     -fx-opacity: 0;
 }
+
+/* --------------------------------------------------------------------------
+   CHALLENGE MODAL OVERLAY & CYBER DIALOG SYSTEM
+   -------------------------------------------------------------------------- */
+.modal-overlay {
+    -fx-background-color: rgba(5, 10, 20, 0.82);
+}
+
+.cyber-modal-card {
+    -fx-background-color: linear-gradient(to bottom, #131D31, #0E1626);
+    -fx-background-radius: 20px;
+    -fx-border-color: rgba(0, 210, 255, 0.45);
+    -fx-border-radius: 20px;
+    -fx-border-width: 1.5px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 210, 255, 0.35), 35, 0, 0, 10);
+}
+
+.cyber-modal-card-orange {
+    -fx-background-color: linear-gradient(to bottom, #1D1826, #120F1C);
+    -fx-background-radius: 20px;
+    -fx-border-color: rgba(255, 122, 0, 0.55);
+    -fx-border-radius: 20px;
+    -fx-border-width: 1.5px;
+    -fx-effect: dropshadow(three-pass-box, rgba(255, 122, 0, 0.45), 35, 0, 0, 10);
+}
+
+.modal-badge-cyan {
+    -fx-background-color: rgba(0, 210, 255, 0.15);
+    -fx-background-radius: 12px;
+    -fx-border-color: rgba(0, 210, 255, 0.5);
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #38BDF8;
+    -fx-font-size: 11px;
+    -fx-font-weight: 800;
+    -fx-padding: 4 12;
+}
+
+.modal-badge-orange {
+    -fx-background-color: rgba(255, 122, 0, 0.18);
+    -fx-background-radius: 12px;
+    -fx-border-color: rgba(255, 122, 0, 0.6);
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #FB923C;
+    -fx-font-size: 11px;
+    -fx-font-weight: 800;
+    -fx-padding: 4 12;
+}
+
+.btn-modal-accept {
+    -fx-background-color: linear-gradient(to right, #10B981, #059669);
+    -fx-background-radius: 10px;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+    -fx-padding: 10 24;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.45), 10, 0, 0, 2);
+}
+
+.btn-modal-accept:hover {
+    -fx-background-color: linear-gradient(to right, #34D399, #10B981);
+    -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.75), 16, 0, 0, 0);
+}
+
+.btn-modal-decline {
+    -fx-background-color: rgba(239, 68, 68, 0.15);
+    -fx-background-radius: 10px;
+    -fx-border-color: rgba(239, 68, 68, 0.5);
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #FCA5A5;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 10 24;
+    -fx-cursor: hand;
+}
+
+.btn-modal-decline:hover {
+    -fx-background-color: #EF4444;
+    -fx-text-fill: #FFFFFF;
+    -fx-effect: dropshadow(three-pass-box, rgba(239, 68, 68, 0.6), 14, 0, 0, 0);
+}
+
+.btn-modal-cancel {
+    -fx-background-color: rgba(51, 65, 85, 0.6);
+    -fx-background-radius: 10px;
+    -fx-border-color: rgba(100, 116, 139, 0.6);
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #CBD5E1;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 22;
+    -fx-cursor: hand;
+}
+
+.btn-modal-cancel:hover {
+    -fx-background-color: #475569;
+    -fx-text-fill: #FFFFFF;
+}
+
+.modal-countdown-bar .track {
+    -fx-background-color: rgba(15, 23, 42, 0.85);
+    -fx-background-radius: 6px;
+}
+
+.modal-countdown-bar .bar {
+    -fx-background-color: linear-gradient(to right, #00D2FF, #10B981);
+    -fx-background-radius: 6px;
+}
+
+.modal-countdown-bar-danger .bar {
+    -fx-background-color: linear-gradient(to right, #FF7A00, #EF4444);
+    -fx-background-radius: 6px;
+}
+

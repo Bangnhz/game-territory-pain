@@ -1,6 +1,7 @@
 package com.territorypaint.server.challenge;
 
 import com.territorypaint.server.session.Session;
+import com.territorypaint.server.session.SessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,8 +18,17 @@ public class ChallengeManager {
 
     private static final Logger logger = LoggerFactory.getLogger(ChallengeManager.class);
 
+    private final SessionManager sessionManager;
     private final Map<UUID, Challenge> challenges = new ConcurrentHashMap<>();
     private final Map<Long, UUID> playerChallenges = new ConcurrentHashMap<>();
+
+    public ChallengeManager() {
+        this(null);
+    }
+
+    public ChallengeManager(SessionManager sessionManager) {
+        this.sessionManager = sessionManager;
+    }
 
     /**
      * Create a challenge if both players are available and have no pending challenge.
@@ -54,6 +64,17 @@ public class ChallengeManager {
         if (challenge != null) {
             playerChallenges.remove(challenge.getChallengerUserId());
             playerChallenges.remove(challenge.getTargetUserId());
+
+            if (sessionManager != null) {
+                Session challenger = sessionManager.getSessionByUserId(challenge.getChallengerUserId());
+                if (challenger != null) {
+                    challenger.setPendingChallengeId(null);
+                }
+                Session target = sessionManager.getSessionByUserId(challenge.getTargetUserId());
+                if (target != null) {
+                    target.setPendingChallengeId(null);
+                }
+            }
         }
     }
 

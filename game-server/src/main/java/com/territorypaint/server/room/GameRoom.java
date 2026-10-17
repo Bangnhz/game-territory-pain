@@ -115,14 +115,20 @@ public class GameRoom {
 
     public void handleReady(Session session, String matchId) {
         submitEvent(() -> {
-            if (status != RoomStatus.WAITING_READY || !currentMatchId.equals(matchId)) {
+            if (status != RoomStatus.WAITING_READY) {
+                return;
+            }
+            if (matchId != null && !matchId.isBlank() && !currentMatchId.equals(matchId)) {
+                logger.warn("Ready matchId mismatch: expected {}, got {}", currentMatchId, matchId);
                 return;
             }
 
             if (session.getUserId().equals(player1Session.getUserId())) {
                 ready1 = true;
+                logger.info("Player 1 ({}) is READY in room {}", session.getUsername(), roomId);
             } else if (session.getUserId().equals(player2Session.getUserId())) {
                 ready2 = true;
+                logger.info("Player 2 ({}) is READY in room {}", session.getUsername(), roomId);
             }
 
             if (ready1 && ready2) {
@@ -237,7 +243,12 @@ public class GameRoom {
 
     public void handlePlayerDisconnectOrForfeit(Session disconnectingSession) {
         submitEvent(() -> {
-            if (finalized || status == RoomStatus.CLOSED) return;
+            if (status == RoomStatus.CLOSED) return;
+            if (status == RoomStatus.WAITING_READY) {
+                closeRoom("PLAYER_LEFT");
+                return;
+            }
+            if (finalized) return;
             finalized = true;
 
             cancelMatchTimers();
@@ -331,6 +342,17 @@ public class GameRoom {
         });
     }
 
+    public void handleExitMatch(Session session) {
+        submitEvent(() -> {
+            if (status == RoomStatus.CLOSED) return;
+            if (status == RoomStatus.WAITING_REMATCH || status == RoomStatus.WAITING_READY) {
+                closeRoom("PLAYER_LEFT");
+            } else if (!finalized) {
+                handlePlayerDisconnectOrForfeit(session);
+            }
+        });
+    }
+
     public void closeRoom(String reason) {
         if (status == RoomStatus.CLOSED) return;
         this.status = RoomStatus.CLOSED;
@@ -341,8 +363,10 @@ public class GameRoom {
 
         player1Session.setStatus(PlayerStatus.IDLE);
         player1Session.setCurrentRoomId(null);
+        player1Session.setPendingChallengeId(null);
         player2Session.setStatus(PlayerStatus.IDLE);
         player2Session.setCurrentRoomId(null);
+        player2Session.setPendingChallengeId(null);
 
         roomRegistry.removeRoom(roomId);
         sessionManager.broadcastOnlineList();

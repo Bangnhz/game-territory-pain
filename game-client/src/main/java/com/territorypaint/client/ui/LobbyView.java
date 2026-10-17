@@ -7,6 +7,7 @@ import com.territorypaint.common.dto.PlayerDTO;
 import com.territorypaint.common.payload.*;
 import com.territorypaint.common.protocol.ActionType;
 import com.territorypaint.common.protocol.PlayerStatus;
+import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -39,11 +40,14 @@ import java.util.function.Consumer;
  * 1. Top Navbar: Game Logo + Glow effect + Arcade navigation buttons.
  * 2. Left Column: Glassmorphism Player Profile Card (Avatar, Score, Win Rate & Stats).
  * 3. Right Column: Cyber Arena Online Players List with dynamically generated Player Cards.
+ * 4. Modal Overlay: Animated cyber modal dialog for incoming/outgoing challenges.
  */
 public class LobbyView {
 
     private final SceneManager sceneManager;
-    private final BorderPane root;
+    private final StackPane root;
+    private final BorderPane mainLayout;
+    private final StackPane modalOverlay;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Consumer<Message> messageListener;
 
@@ -62,8 +66,7 @@ public class LobbyView {
     private Label statWinRateLabel;
     private ProgressBar winRateBar;
 
-    // Challenge dialog & timers
-    private Dialog<ButtonType> activeChallengeDialog;
+    // Challenge countdown timers
     private ScheduledExecutorService countdownScheduler;
     private ScheduledFuture<?> countdownTask;
 
@@ -79,7 +82,9 @@ public class LobbyView {
 
     public LobbyView(SceneManager sceneManager) {
         this.sceneManager = sceneManager;
-        this.root = new BorderPane();
+        this.root = new StackPane();
+        this.mainLayout = new BorderPane();
+        this.modalOverlay = new StackPane();
         this.messageListener = this::handleServerMessage;
 
         loadStylesheet();
@@ -102,11 +107,11 @@ public class LobbyView {
     }
 
     private void initView() {
-        root.getStyleClass().add("lobby-root");
-        root.setPadding(new Insets(24));
+        mainLayout.getStyleClass().add("lobby-root");
+        mainLayout.setPadding(new Insets(24));
 
         // 1. Top Navbar
-        root.setTop(buildHeader());
+        mainLayout.setTop(buildHeader());
 
         // Main Center Content: Split into Left Profile Column & Right Online Arena Column
         HBox contentBox = new HBox(24);
@@ -119,7 +124,15 @@ public class LobbyView {
         HBox.setHgrow(rightColumn, Priority.ALWAYS);
 
         contentBox.getChildren().addAll(leftColumn, rightColumn);
-        root.setCenter(contentBox);
+        mainLayout.setCenter(contentBox);
+
+        // 2. Cyber Modal Overlay Container (Initially hidden)
+        modalOverlay.getStyleClass().add("modal-overlay");
+        modalOverlay.setAlignment(Pos.CENTER);
+        modalOverlay.setVisible(false);
+        modalOverlay.setManaged(false);
+
+        root.getChildren().addAll(mainLayout, modalOverlay);
     }
 
     // =========================================================================
@@ -374,10 +387,6 @@ public class LobbyView {
         card.getStyleClass().add("player-card");
         card.setAlignment(Pos.CENTER_LEFT);
 
-        Long currentUserIdObj = sceneManager.getClientState().getUserId();
-        long currentUserId = currentUserIdObj != null ? currentUserIdObj : -1L;
-        boolean isSelf = (player.getUserId() == currentUserId);
-
         // 1. Mini Avatar
         StackPane avatarBox = new StackPane();
         Circle avatarCircle = new Circle(22);
@@ -432,28 +441,19 @@ public class LobbyView {
         }
         statusBadge.getChildren().addAll(dot, statusText);
 
-        // 4. Action Button or Self Indicator
-        Node actionNode;
-        if (isSelf) {
-            Label selfBadge = new Label("YOU");
-            selfBadge.getStyleClass().add("badge-self");
-            actionNode = selfBadge;
-        } else {
-            Button challengeBtn = new Button("⚡ CHALLENGE");
-            challengeBtn.getStyleClass().add("btn-challenge");
+        // 4. Action Button: Challenge button
+        Button challengeBtn = new Button("⚡ CHALLENGE");
+        challengeBtn.getStyleClass().add("btn-challenge");
 
-            boolean canChallenge = (status == PlayerStatus.IDLE) && player.isCanChallenge();
-            challengeBtn.setDisable(!canChallenge);
+        boolean canChallenge = (status == PlayerStatus.IDLE) && player.isCanChallenge();
+        challengeBtn.setDisable(!canChallenge);
 
-            if (canChallenge) {
-                addScaleHoverAnimation(challengeBtn, 1.06);
-                challengeBtn.setOnAction(e -> sendChallenge(player));
-            }
-
-            actionNode = challengeBtn;
+        if (canChallenge) {
+            addScaleHoverAnimation(challengeBtn, 1.06);
+            challengeBtn.setOnAction(e -> sendChallenge(player));
         }
 
-        card.getChildren().addAll(avatarBox, infoBox, spacer, statusBadge, actionNode);
+        card.getChildren().addAll(avatarBox, infoBox, spacer, statusBadge, challengeBtn);
         addScaleHoverAnimation(card, 1.015);
         return card;
     }
@@ -495,7 +495,9 @@ public class LobbyView {
     // PROFILE & DATA SYNC
     // =========================================================================
     public void refreshData() {
+        closeActiveModal();
         updateProfileDisplay();
+        renderPlayerCards();
         sceneManager.getRestClient().getProfile().thenAccept(res -> {
             if (res != null && res.containsKey("userId")) {
                 Number scoreNum = (Number) res.getOrDefault("totalScore", 1500L);
@@ -546,12 +548,12 @@ public class LobbyView {
     }
 
     // =========================================================================
-    // CHALLENGE & SOCKET OPERATIONS
+    // CHALLENGE & SOCKET OPERATIONS (MODERN CYBER MODAL SYSTEM)
     // =========================================================================
     private void sendChallenge(PlayerDTO target) {
         ChallengePayload payload = new ChallengePayload(target.getUserId());
         sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE, payload));
-        sceneManager.showAlert("Challenge Dispatched", "Challenge sent to " + target.getUsername() + ". Awaiting response...", Alert.AlertType.INFORMATION);
+        showOutgoingChallengeModal(target);
     }
 
     private void handleServerMessage(Message msg) {
@@ -563,7 +565,20 @@ public class LobbyView {
                 if (payload != null && payload.getPlayers() != null) {
                     Platform.runLater(() -> {
                         playerList.clear();
-                        playerList.addAll(payload.getPlayers());
+                        Long currentUserId = sceneManager.getClientState().getUserId();
+                        String currentUsername = sceneManager.getClientState().getUsername();
+
+                        for (PlayerDTO p : payload.getPlayers()) {
+                            if (p == null) continue;
+                            // Exclude currently logged-in account (self)
+                            if (currentUserId != null && p.getUserId() == currentUserId.longValue()) {
+                                continue;
+                            }
+                            if (currentUsername != null && !currentUsername.isBlank() && currentUsername.equalsIgnoreCase(p.getUsername())) {
+                                continue;
+                            }
+                            playerList.add(p);
+                        }
                         sceneManager.getClientState().setOnlinePlayers(payload.getPlayers());
                         renderPlayerCards();
                     });
@@ -572,78 +587,309 @@ public class LobbyView {
             case CHALLENGE_RECEIVED -> {
                 ChallengeReceivedPayload payload = objectMapper.convertValue(msg.getPayload(), ChallengeReceivedPayload.class);
                 if (payload != null) {
-                    Platform.runLater(() -> showIncomingChallengeDialog(payload));
+                    Platform.runLater(() -> showIncomingChallengeModal(payload));
                 }
             }
             case CHALLENGE_RESULT -> {
                 ChallengeResultPayload payload = objectMapper.convertValue(msg.getPayload(), ChallengeResultPayload.class);
                 if (payload != null) {
-                    Platform.runLater(() -> {
-                        closeActiveChallengeDialog();
-                        sceneManager.showAlert("Challenge Status", "Challenge " + payload.getStatus() + ": " + payload.getReason(), Alert.AlertType.INFORMATION);
-                    });
+                    Platform.runLater(() -> handleChallengeResult(payload));
                 }
             }
             case MATCH_START -> {
+                MatchStartPayload payload = null;
+                try {
+                    payload = objectMapper.convertValue(msg.getPayload(), MatchStartPayload.class);
+                } catch (Exception ignored) {}
+                final MatchStartPayload startPayload = payload;
                 Platform.runLater(() -> {
-                    closeActiveChallengeDialog();
-                    sceneManager.showGameScene();
+                    closeActiveModal();
+                    sceneManager.showGameScene(startPayload);
                 });
             }
             case ERROR -> {
                 ErrorPayload err = objectMapper.convertValue(msg.getPayload(), ErrorPayload.class);
                 if (err != null) {
-                    Platform.runLater(() -> sceneManager.showAlert("Error", err.getMessage(), Alert.AlertType.ERROR));
+                    Platform.runLater(() -> {
+                        closeActiveModal();
+                        sceneManager.showAlert("Error", err.getMessage(), Alert.AlertType.ERROR);
+                    });
                 }
             }
         }
     }
 
-    private void showIncomingChallengeDialog(ChallengeReceivedPayload payload) {
-        closeActiveChallengeDialog();
+    /**
+     * Giao diện form mời người khác chơi (Outgoing Challenge Modal).
+     * Hiển thị khi người chơi gửi lời mời và đang chờ đối phương phản hồi.
+     */
+    private void showOutgoingChallengeModal(PlayerDTO target) {
+        closeActiveModal();
 
-        Dialog<ButtonType> dialog = new Dialog<>();
-        this.activeChallengeDialog = dialog;
-        dialog.setTitle("Battle Challenge Received!");
-        dialog.setHeaderText("⚡ Incoming Challenge from " + payload.getChallengerUsername() + "!");
+        VBox card = new VBox(18);
+        card.getStyleClass().add("cyber-modal-card");
+        card.setMaxWidth(440);
+        card.setPadding(new Insets(28, 32, 28, 32));
+        card.setAlignment(Pos.CENTER);
 
-        ButtonType acceptButtonType = new ButtonType("Accept Battle", ButtonBar.ButtonData.OK_DONE);
-        ButtonType rejectButtonType = new ButtonType("Decline", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().addAll(acceptButtonType, rejectButtonType);
+        // Header Badge
+        Label badge = new Label("📡 CHALLENGE DISPATCHED");
+        badge.getStyleClass().add("modal-badge-cyan");
 
-        Label countdownLabel = new Label("Time remaining: 15s");
-        countdownLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #EF4444;");
+        // Target Avatar
+        StackPane avatarBox = new StackPane();
+        Circle outerRing = new Circle(38);
+        outerRing.setFill(Color.TRANSPARENT);
+        outerRing.setStroke(Color.web("#00D2FF", 0.7));
+        outerRing.setStrokeWidth(2.5);
+        outerRing.setEffect(new DropShadow(14, Color.web("#00D2FF", 0.6)));
 
-        Label descLabel = new Label("Player " + payload.getChallengerUsername() + " wants to compete with you in 1v1 Territorial Paint.");
-        descLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #334155;");
+        Circle innerCircle = new Circle(32);
+        innerCircle.setFill(Color.web(getPaletteColorForUsername(target.getUsername())));
 
-        dialog.getDialogPane().setContent(new VBox(12, descLabel, countdownLabel));
+        Label initialLabel = new Label(getInitialChar(target.getUsername()));
+        initialLabel.setStyle("-fx-font-size: 26px; -fx-font-weight: 900; -fx-text-fill: white;");
 
-        int[] remaining = {15};
+        avatarBox.getChildren().addAll(outerRing, innerCircle, initialLabel);
+
+        // Pulsing animation
+        ScaleTransition st = new ScaleTransition(Duration.millis(800), outerRing);
+        st.setFromX(1.0);
+        st.setFromY(1.0);
+        st.setToX(1.15);
+        st.setToY(1.15);
+        st.setAutoReverse(true);
+        st.setCycleCount(ScaleTransition.INDEFINITE);
+        st.play();
+
+        // Target Info
+        Label nameLabel = new Label(target.getUsername());
+        nameLabel.setStyle("-fx-font-size: 22px; -fx-font-weight: 800; -fx-text-fill: white;");
+
+        Label scoreLabel = new Label("🏆 " + target.getTotalScore() + " LP");
+        scoreLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #FBBF24;");
+
+        VBox targetBox = new VBox(6, nameLabel, scoreLabel);
+        targetBox.setAlignment(Pos.CENTER);
+
+        Label descLabel = new Label("Waiting for " + target.getUsername() + " to accept your battle challenge...");
+        descLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #94A3B8; -fx-text-alignment: center;");
+        descLabel.setWrapText(true);
+
+        // Countdown Timer & Progress Bar
+        Label countdownLabel = new Label("⏰ Expires in: 15s");
+        countdownLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #38BDF8;");
+
+        ProgressBar countdownBar = new ProgressBar(1.0);
+        countdownBar.getStyleClass().add("modal-countdown-bar");
+        countdownBar.setMaxWidth(Double.MAX_VALUE);
+        countdownBar.setPrefHeight(8);
+
+        VBox timerBox = new VBox(6, countdownLabel, countdownBar);
+        timerBox.setAlignment(Pos.CENTER);
+        timerBox.setMaxWidth(340);
+
+        // Cancel Button
+        Button cancelBtn = new Button("✕ Cancel Challenge");
+        cancelBtn.getStyleClass().add("btn-modal-cancel");
+        cancelBtn.setOnAction(e -> {
+            st.stop();
+            cancelCountdown();
+            closeActiveModal();
+        });
+
+        card.getChildren().addAll(badge, avatarBox, targetBox, descLabel, timerBox, cancelBtn);
+
+        displayModal(card);
+
+        // 15 seconds timer
+        final int totalSec = 15;
+        final int[] remaining = {totalSec};
         countdownScheduler = Executors.newSingleThreadScheduledExecutor();
         countdownTask = countdownScheduler.scheduleAtFixedRate(() -> {
             remaining[0]--;
-            Platform.runLater(() -> countdownLabel.setText("Time remaining: " + remaining[0] + "s"));
-            if (remaining[0] <= 0) {
-                Platform.runLater(dialog::close);
-            }
+            double progress = Math.max(0.0, (double) remaining[0] / totalSec);
+            Platform.runLater(() -> {
+                countdownLabel.setText("⏰ Expires in: " + remaining[0] + "s");
+                countdownBar.setProgress(progress);
+                if (remaining[0] <= 0) {
+                    st.stop();
+                    descLabel.setText("Challenge timed out. Opponent did not respond.");
+                    countdownLabel.setText("⏰ Expired");
+                    countdownLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #EF4444;");
+                    cancelBtn.setText("Close");
+                    cancelCountdown();
+                }
+            });
         }, 1, 1, TimeUnit.SECONDS);
-
-        dialog.showAndWait().ifPresent(response -> {
-            cancelCountdown();
-            if (response == acceptButtonType) {
-                sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_ACCEPT, new ChallengeAcceptPayload(payload.getChallengeId())));
-            } else {
-                sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_REJECT, new ChallengeRejectPayload(payload.getChallengeId())));
-            }
-        });
     }
 
-    private void closeActiveChallengeDialog() {
+    /**
+     * Giao diện form nhận lời mời chơi từ người khác (Incoming Challenge Modal).
+     * Hiển thị khi có đối thủ gửi lời mời thách đấu 1v1.
+     */
+    private void showIncomingChallengeModal(ChallengeReceivedPayload payload) {
+        closeActiveModal();
+        SoundManager.getInstance().playMoveSfx();
+
+        VBox card = new VBox(18);
+        card.getStyleClass().add("cyber-modal-card-orange");
+        card.setMaxWidth(460);
+        card.setPadding(new Insets(28, 32, 28, 32));
+        card.setAlignment(Pos.CENTER);
+
+        // Header Badge
+        Label badge = new Label("⚡ BATTLE CHALLENGE RECEIVED!");
+        badge.getStyleClass().add("modal-badge-orange");
+
+        // Challenger Avatar
+        StackPane avatarBox = new StackPane();
+        Circle outerRing = new Circle(40);
+        outerRing.setFill(Color.TRANSPARENT);
+        outerRing.setStroke(Color.web("#FF7A00", 0.75));
+        outerRing.setStrokeWidth(2.5);
+        outerRing.setEffect(new DropShadow(16, Color.web("#FF7A00", 0.7)));
+
+        Circle innerCircle = new Circle(34);
+        innerCircle.setFill(Color.web(getPaletteColorForUsername(payload.getChallengerUsername())));
+
+        Label initialLabel = new Label(getInitialChar(payload.getChallengerUsername()));
+        initialLabel.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: white;");
+
+        avatarBox.getChildren().addAll(outerRing, innerCircle, initialLabel);
+
+        // Pulsing animation
+        ScaleTransition st = new ScaleTransition(Duration.millis(700), outerRing);
+        st.setFromX(1.0);
+        st.setFromY(1.0);
+        st.setToX(1.14);
+        st.setToY(1.14);
+        st.setAutoReverse(true);
+        st.setCycleCount(ScaleTransition.INDEFINITE);
+        st.play();
+
+        // Challenger Info
+        Label nameLabel = new Label(payload.getChallengerUsername());
+        nameLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: 800; -fx-text-fill: white;");
+
+        long challengerScore = payload.getChallenger() != null ? payload.getChallenger().getTotalScore() : 1500L;
+        Label scoreLabel = new Label("🏆 " + challengerScore + " LP");
+        scoreLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #FBBF24;");
+
+        VBox challengerBox = new VBox(6, nameLabel, scoreLabel);
+        challengerBox.setAlignment(Pos.CENTER);
+
+        Label descLabel = new Label("Wants to compete with you in 1v1 Territorial Paint battle!");
+        descLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #E2E8F0; -fx-text-alignment: center;");
+        descLabel.setWrapText(true);
+
+        // Countdown Timer & Progress Bar
+        Label countdownLabel = new Label("⏰ Auto-declines in: 15s");
+        countdownLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #F43F5E;");
+
+        ProgressBar countdownBar = new ProgressBar(1.0);
+        countdownBar.getStyleClass().addAll("modal-countdown-bar", "modal-countdown-bar-danger");
+        countdownBar.setMaxWidth(Double.MAX_VALUE);
+        countdownBar.setPrefHeight(8);
+
+        VBox timerBox = new VBox(6, countdownLabel, countdownBar);
+        timerBox.setAlignment(Pos.CENTER);
+        timerBox.setMaxWidth(360);
+
+        // Action Buttons
+        Button acceptBtn = new Button("⚔️ ACCEPT BATTLE");
+        acceptBtn.getStyleClass().add("btn-modal-accept");
+        addScaleHoverAnimation(acceptBtn, 1.05);
+
+        Button declineBtn = new Button("✕ DECLINE");
+        declineBtn.getStyleClass().add("btn-modal-decline");
+        addScaleHoverAnimation(declineBtn, 1.05);
+
+        acceptBtn.setOnAction(e -> {
+            st.stop();
+            cancelCountdown();
+            closeActiveModal();
+            sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_ACCEPT, new ChallengeAcceptPayload(payload.getChallengeId())));
+        });
+
+        declineBtn.setOnAction(e -> {
+            st.stop();
+            cancelCountdown();
+            closeActiveModal();
+            sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_REJECT, new ChallengeRejectPayload(payload.getChallengeId())));
+        });
+
+        HBox btnBox = new HBox(16, declineBtn, acceptBtn);
+        btnBox.setAlignment(Pos.CENTER);
+
+        card.getChildren().addAll(badge, avatarBox, challengerBox, descLabel, timerBox, btnBox);
+
+        displayModal(card);
+
+        // 15 seconds timer
+        final int totalSec = 15;
+        final int[] remaining = {totalSec};
+        countdownScheduler = Executors.newSingleThreadScheduledExecutor();
+        countdownTask = countdownScheduler.scheduleAtFixedRate(() -> {
+            remaining[0]--;
+            double progress = Math.max(0.0, (double) remaining[0] / totalSec);
+            Platform.runLater(() -> {
+                countdownLabel.setText("⏰ Auto-declines in: " + remaining[0] + "s");
+                countdownBar.setProgress(progress);
+                if (remaining[0] <= 0) {
+                    st.stop();
+                    cancelCountdown();
+                    closeActiveModal();
+                    sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_REJECT, new ChallengeRejectPayload(payload.getChallengeId())));
+                }
+            });
+        }, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void handleChallengeResult(ChallengeResultPayload payload) {
+        String status = payload.getStatus() != null ? payload.getStatus() : "";
+        if ("ACCEPTED".equalsIgnoreCase(status)) {
+            closeActiveModal();
+        } else if ("REJECTED".equalsIgnoreCase(status)) {
+            closeActiveModal();
+            sceneManager.showAlert("Challenge Declined", "The opponent declined your challenge request.", Alert.AlertType.INFORMATION);
+        } else if ("EXPIRED".equalsIgnoreCase(status)) {
+            closeActiveModal();
+            sceneManager.showAlert("Challenge Expired", "The challenge timed out because the opponent did not respond.", Alert.AlertType.INFORMATION);
+        } else if ("CANCELLED".equalsIgnoreCase(status)) {
+            closeActiveModal();
+        } else if (!"PENDING".equalsIgnoreCase(status)) {
+            closeActiveModal();
+            sceneManager.showAlert("Challenge Status", "Challenge " + status + ": " + payload.getReason(), Alert.AlertType.INFORMATION);
+        }
+    }
+
+    private void displayModal(Node content) {
+        modalOverlay.getChildren().setAll(content);
+        modalOverlay.setVisible(true);
+        modalOverlay.setManaged(true);
+
+        content.setScaleX(0.85);
+        content.setScaleY(0.85);
+        content.setOpacity(0.0);
+
+        ScaleTransition st = new ScaleTransition(Duration.millis(200), content);
+        st.setToX(1.0);
+        st.setToY(1.0);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(200), content);
+        ft.setToValue(1.0);
+
+        st.play();
+        ft.play();
+    }
+
+    private void closeActiveModal() {
         cancelCountdown();
-        if (activeChallengeDialog != null) {
-            activeChallengeDialog.close();
-            activeChallengeDialog = null;
+        if (modalOverlay != null) {
+            modalOverlay.getChildren().clear();
+            modalOverlay.setVisible(false);
+            modalOverlay.setManaged(false);
         }
     }
 
@@ -659,6 +905,7 @@ public class LobbyView {
     }
 
     private void handleLogout() {
+        closeActiveModal();
         SoundManager.getInstance().stopLobbyBgm();
         sceneManager.getTcpClient().disconnect();
         sceneManager.showLoginScene();

@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,7 +55,7 @@ public class GameServer {
     public GameServer(int port, String backendBaseUrl, String serviceKey, String outboxDirPath) {
         this.port = port;
         this.sessionManager = new SessionManager();
-        this.challengeManager = new ChallengeManager();
+        this.challengeManager = new ChallengeManager(sessionManager);
         this.roomRegistry = new RoomRegistry();
         this.backendClient = new BackendClient(backendBaseUrl, serviceKey);
         this.outbox = new ResultOutbox(outboxDirPath);
@@ -115,10 +116,22 @@ public class GameServer {
                 GameRoom room = roomRegistry.getRoom(session.getCurrentRoomId());
                 if (room != null) {
                     try {
-                        ReadyPayload p = objectMapper.convertValue(message.getPayload(), ReadyPayload.class);
-                        room.handleReady(session, p.getMatchId() != null ? p.getMatchId().toString() : null);
+                        String matchIdStr = null;
+                        if (message.getPayload() instanceof Map<?, ?> map) {
+                            Object m = map.get("matchId");
+                            if (m != null && !m.toString().isBlank()) {
+                                matchIdStr = m.toString();
+                            }
+                        } else {
+                            ReadyPayload p = objectMapper.convertValue(message.getPayload(), ReadyPayload.class);
+                            if (p != null && p.getMatchId() != null) {
+                                matchIdStr = p.getMatchId().toString();
+                            }
+                        }
+                        room.handleReady(session, matchIdStr);
                     } catch (Exception e) {
                         logger.warn("Error parsing READY payload: {}", e.getMessage());
+                        room.handleReady(session, null);
                     }
                 }
             }
@@ -150,7 +163,7 @@ public class GameServer {
             if (session.getCurrentRoomId() != null) {
                 GameRoom room = roomRegistry.getRoom(session.getCurrentRoomId());
                 if (room != null) {
-                    room.handlePlayerDisconnectOrForfeit(session);
+                    room.handleExitMatch(session);
                 }
             }
         }
