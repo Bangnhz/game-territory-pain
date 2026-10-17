@@ -90,9 +90,9 @@ public class TcpClient {
                 try {
                     Message msg = objectMapper.readValue(line, Message.class);
 
-                    // Requirement 13.7: Respond to server PING with PONG
+                    // Requirement 13.7: Respond to server PING with PONG (echo payload/nonce)
                     if (msg.getActionType() == ActionType.PING) {
-                        send(Message.event(ActionType.PONG, null));
+                        send(Message.event(ActionType.PONG, msg.getPayload()));
                         continue;
                     }
 

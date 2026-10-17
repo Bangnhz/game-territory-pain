@@ -219,13 +219,18 @@ public class ClientHandler implements Runnable {
 
     private void handlePong(Message message) {
         try {
-            Map<?, ?> payload = objectMapper.convertValue(message.getPayload(), Map.class);
-            if (payload != null && payload.get("nonce") != null) {
-                String nonceStr = payload.get("nonce").toString();
-                if (pendingPingNonce != null && pendingPingNonce.toString().equals(nonceStr)) {
-                    this.lastPongTime = Instant.now();
+            if (message.getPayload() != null) {
+                Map<?, ?> payload = objectMapper.convertValue(message.getPayload(), Map.class);
+                if (payload != null && payload.get("nonce") != null) {
+                    String nonceStr = payload.get("nonce").toString();
+                    if (pendingPingNonce != null && pendingPingNonce.toString().equals(nonceStr)) {
+                        this.lastPongTime = Instant.now();
+                        return;
+                    }
                 }
             }
+            // Fallback: any PONG received from connected client refreshes heartbeat
+            this.lastPongTime = Instant.now();
         } catch (Exception e) {
             logger.warn("Invalid PONG received: {}", e.getMessage());
         }

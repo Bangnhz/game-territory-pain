@@ -1,0 +1,10 @@
+# ========================================================
+# Cau hinh ket noi danh cho Game Client
+# ========================================================
+# Khi choi 2 may:
+# - May chu (Host): de mac dinh la localhost
+# - May khach (Client): doi "localhost" thanh dia chi IP cua May chu (vi du: 192.168.1.105)
+
+backend.url=http://localhost:8080
+gameserver.host=localhost
+gameserver.port=8888
