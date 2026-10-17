@@ -443,16 +443,7 @@ public class GameView {
                 }
             }
             case MOVE_REJECTED -> {
-                MoveRejectedPayload payload = null;
-                try {
-                    payload = objectMapper.convertValue(msg.getPayload(), MoveRejectedPayload.class);
-                } catch (Exception ignored) {}
-                if (payload != null && "OUT_OF_BOUNDS".equalsIgnoreCase(payload.getCode())) {
-                    Platform.runLater(() -> {
-                        statusLabel.setText("⚠️ Boundary reached! You cannot move outside the 20x20 arena.");
-                        statusLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #EF4444; -fx-font-weight: bold;");
-                    });
-                }
+                // Silently ignore move rejections (e.g. boundary reached) without displaying disruptive warnings
             }
             case TIME_SYNC -> {
                 TimeSyncPayload payload = objectMapper.convertValue(msg.getPayload(), TimeSyncPayload.class);
