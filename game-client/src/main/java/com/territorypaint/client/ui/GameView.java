@@ -326,23 +326,63 @@ public class GameView {
                 }
             }
             case READY -> {
-                if (msg.getPayload() instanceof Map<?, ?> map) {
-                    Object allReadyObj = map.get("allReady");
-                    boolean allReady = Boolean.TRUE.equals(allReadyObj) || "true".equalsIgnoreCase(String.valueOf(allReadyObj));
+                ReadyStatusPayload statusPayload = null;
+                try {
+                    statusPayload = objectMapper.convertValue(msg.getPayload(), ReadyStatusPayload.class);
+                } catch (Exception ignored) {}
 
-                    Platform.runLater(() -> {
-                        if (allReady) {
-                            start3SecondCountdown();
-                        } else {
-                            if (readyButton.isDisabled()) {
-                                prepStatusBadge.setText("1/2 PLAYERS READY (WAITING FOR OPPONENT...)");
-                            } else {
-                                prepStatusBadge.setText("1/2 PLAYERS READY (OPPONENT IS READY!)");
-                                prepStatusBadge.setStyle("-fx-text-fill: #34D399; -fx-font-weight: 800;");
-                            }
-                        }
-                    });
+                boolean allReady = false;
+                int readyCount = 1;
+                Long readyUserId = null;
+
+                if (statusPayload != null && (statusPayload.getReadyCount() > 0 || statusPayload.isAllReady())) {
+                    allReady = statusPayload.isAllReady();
+                    readyCount = statusPayload.getReadyCount();
+                    readyUserId = statusPayload.getUserId();
+                } else if (msg.getPayload() instanceof Map<?, ?> map) {
+                    Object allReadyObj = map.get("allReady");
+                    allReady = Boolean.TRUE.equals(allReadyObj) || "true".equalsIgnoreCase(String.valueOf(allReadyObj));
+                    Object countObj = map.get("readyCount");
+                    if (countObj instanceof Number num) {
+                        readyCount = num.intValue();
+                    } else if (countObj != null) {
+                        try { readyCount = Integer.parseInt(countObj.toString()); } catch (Exception ignored) {}
+                    }
+                    Object uidObj = map.get("userId");
+                    if (uidObj instanceof Number num) {
+                        readyUserId = num.longValue();
+                    } else if (uidObj != null) {
+                        try { readyUserId = Long.parseLong(uidObj.toString()); } catch (Exception ignored) {}
+                    }
                 }
+
+                final boolean finalAllReady = allReady;
+                final int finalReadyCount = Math.max(1, readyCount);
+                final Long finalReadyUserId = readyUserId;
+
+                Platform.runLater(() -> {
+                    if (finalAllReady) {
+                        start3SecondCountdown();
+                    } else {
+                        boolean isMe = false;
+                        Long myUserId = sceneManager.getClientState() != null ? sceneManager.getClientState().getUserId() : null;
+                        if (finalReadyUserId != null && myUserId != null) {
+                            isMe = finalReadyUserId.equals(myUserId);
+                        } else {
+                            isMe = readyButton.isDisabled();
+                        }
+
+                        if (isMe) {
+                            prepStatusBadge.setText(finalReadyCount + "/2 PLAYERS READY (WAITING FOR OPPONENT...)");
+                            prepStatusBadge.setStyle("-fx-text-fill: #38BDF8; -fx-font-weight: 800;");
+                        } else {
+                            prepStatusBadge.setText(finalReadyCount + "/2 PLAYERS READY (OPPONENT IS READY!)");
+                            prepStatusBadge.setStyle("-fx-text-fill: #34D399; -fx-font-weight: 900; -fx-border-color: rgba(52, 211, 153, 0.8); -fx-effect: dropshadow(three-pass-box, rgba(52, 211, 153, 0.5), 14, 0, 0, 0);");
+                            animateCountdownPulse(prepStatusBadge);
+                            SoundManager.getInstance().playMoveSfx();
+                        }
+                    }
+                });
             }
             case MATCH_BEGIN -> {
                 Platform.runLater(() -> {

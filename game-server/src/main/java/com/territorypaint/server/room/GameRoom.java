@@ -138,12 +138,10 @@ public class GameRoom {
             int readyCount = (ready1 ? 1 : 0) + (ready2 ? 1 : 0);
             boolean allReady = ready1 && ready2;
 
-            sendToBoth(Message.event(ActionType.READY, Map.of(
-                    "userId", session.getUserId(),
-                    "slot", readySlot,
-                    "readyCount", readyCount,
-                    "allReady", allReady
-            )));
+            ReadyStatusPayload readyStatus = new ReadyStatusPayload(
+                    roomId, currentMatchId, session.getUserId(), readySlot, readyCount, allReady, ready1, ready2
+            );
+            sendToBoth(Message.event(ActionType.READY, readyStatus));
 
             if (allReady) {
                 if (readyTimeoutTask != null) readyTimeoutTask.cancel(false);
