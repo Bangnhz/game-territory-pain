@@ -63,6 +63,8 @@ public class GameView {
     private Button readyButton;
 
     private long lastMoveTimeMs = 0;
+    private volatile Direction pendingDirection = null;
+    private ScheduledFuture<?> bufferedMoveTask = null;
     private SnapshotDTO latestSnapshot;
     private String matchId;
 
@@ -205,6 +207,7 @@ public class GameView {
         player2ScoreLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #FB923C;");
 
         Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
+        soundToggleBtn.setFocusTraversable(false);
 
         hud.getChildren().addAll(player1ScoreLabel, spacer1, timerLabel, spacer2, player2ScoreLabel, soundToggleBtn);
         gameLayout.setTop(hud);
@@ -213,6 +216,7 @@ public class GameView {
         canvas = new Canvas(GRID_SIZE * CELL_SIZE, GRID_SIZE * CELL_SIZE);
         canvas.setFocusTraversable(true);
         canvas.setOnKeyPressed(this::handleKeyPressed);
+        canvas.setOnMouseClicked(e -> canvas.requestFocus());
 
         prepOverlay = new StackPane();
         prepOverlay.setAlignment(Pos.CENTER);
@@ -268,6 +272,9 @@ public class GameView {
         modalOverlay.setManaged(false);
 
         root.getChildren().addAll(gameLayout, modalOverlay);
+        root.setFocusTraversable(true);
+        root.addEventFilter(KeyEvent.KEY_PRESSED, this::handleKeyPressed);
+        root.setOnMouseClicked(e -> canvas.requestFocus());
 
         renderEmptyGrid();
     }
@@ -292,7 +299,7 @@ public class GameView {
     }
 
     private void handleKeyPressed(KeyEvent event) {
-        if (latestSnapshot == null || matchId == null || !matchPlaying) return;
+        if (!matchPlaying || latestSnapshot == null || matchId == null) return;
 
         Direction dir = null;
         if (event.getCode() == KeyCode.W || event.getCode() == KeyCode.UP) dir = Direction.UP;
@@ -301,17 +308,54 @@ public class GameView {
         else if (event.getCode() == KeyCode.D || event.getCode() == KeyCode.RIGHT) dir = Direction.RIGHT;
 
         if (dir == null) return;
+        event.consume();
 
-        // Requirement 6.6: Client-side 100ms move throttling
         long now = System.currentTimeMillis();
-        if (now - lastMoveTimeMs < 100) return;
-        lastMoveTimeMs = now;
+        long elapsed = now - lastMoveTimeMs;
 
+        if (elapsed < 100) {
+            // Buffer the requested move so fast direction changes aren't dropped
+            pendingDirection = dir;
+            scheduleBufferedMove(100 - elapsed);
+            return;
+        }
+
+        executeMove(dir);
+    }
+
+    private synchronized void scheduleBufferedMove(long delayMs) {
+        if (bufferedMoveTask != null && !bufferedMoveTask.isDone()) {
+            return;
+        }
+        if (prepCountdownScheduler == null || prepCountdownScheduler.isShutdown()) {
+            prepCountdownScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "MoveBufferThread");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        bufferedMoveTask = prepCountdownScheduler.schedule(() -> {
+            Platform.runLater(() -> {
+                if (pendingDirection != null && matchPlaying) {
+                    Direction d = pendingDirection;
+                    pendingDirection = null;
+                    long now = System.currentTimeMillis();
+                    if (now - lastMoveTimeMs >= 100) {
+                        executeMove(d);
+                    }
+                }
+            });
+        }, Math.max(10, delayMs), TimeUnit.MILLISECONDS);
+    }
+
+    private void executeMove(Direction dir) {
+        if (dir == null || latestSnapshot == null || matchId == null || !matchPlaying) return;
+
+        lastMoveTimeMs = System.currentTimeMillis();
         long seq = sceneManager.getClientState().nextMoveSeq();
         MovePayload payload = new MovePayload(matchId, seq, dir);
         sceneManager.getTcpClient().send(Message.event(ActionType.MOVE, payload));
 
-        // Phát âm thanh nếu có thao tác di chuyển
         SoundManager.getInstance().playMoveSfx();
     }
 
@@ -402,6 +446,18 @@ public class GameView {
                     Platform.runLater(() -> {
                         this.latestSnapshot = payload.getSnapshot();
                         renderSnapshot(latestSnapshot);
+                    });
+                }
+            }
+            case MOVE_REJECTED -> {
+                MoveRejectedPayload payload = null;
+                try {
+                    payload = objectMapper.convertValue(msg.getPayload(), MoveRejectedPayload.class);
+                } catch (Exception ignored) {}
+                if (payload != null && "OUT_OF_BOUNDS".equalsIgnoreCase(payload.getCode())) {
+                    Platform.runLater(() -> {
+                        statusLabel.setText("⚠️ Boundary reached! You cannot move outside the 20x20 arena.");
+                        statusLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #EF4444; -fx-font-weight: bold;");
                     });
                 }
             }
@@ -998,6 +1054,11 @@ public class GameView {
             prepCountdownTask.cancel(true);
             prepCountdownTask = null;
         }
+        if (bufferedMoveTask != null && !bufferedMoveTask.isDone()) {
+            bufferedMoveTask.cancel(true);
+            bufferedMoveTask = null;
+        }
+        pendingDirection = null;
         if (prepCountdownScheduler != null && !prepCountdownScheduler.isShutdown()) {
             prepCountdownScheduler.shutdownNow();
             prepCountdownScheduler = null;
