@@ -128,6 +128,18 @@ public class RestClient {
             } else if (map.containsKey("content") && !map.containsKey("items")) {
                 map.put("items", map.get("content"));
             }
+            if (map.get("profile") instanceof Map<?, ?> prof) {
+                for (Map.Entry<?, ?> entry : prof.entrySet()) {
+                    if (entry.getKey() != null && !map.containsKey(entry.getKey().toString())) {
+                        map.put(entry.getKey().toString(), entry.getValue());
+                    }
+                }
+            }
+            if (map.containsKey("totalScore") && !map.containsKey("rankingScore")) {
+                map.put("rankingScore", map.get("totalScore"));
+            } else if (map.containsKey("rankingScore") && !map.containsKey("totalScore")) {
+                map.put("totalScore", map.get("rankingScore"));
+            }
             if (response.statusCode() >= 400) {
                 // Ensure error or message exists if backend response didn't provide any key
                 if (!map.containsKey("message") && !map.containsKey("error") && !map.containsKey("fields")) {

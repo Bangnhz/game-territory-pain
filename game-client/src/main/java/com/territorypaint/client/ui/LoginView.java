@@ -159,13 +159,39 @@ public class LoginView {
         actionButton.setDisable(false);
         if (res.containsKey("token")) {
             String jwt = (String) res.get("token");
-            Number userIdNum = (Number) res.get("userId");
-            Number ratingNum = (Number) res.getOrDefault("rankingScore", 1500L);
+            java.util.Map<?, ?> profile = res.get("profile") instanceof java.util.Map<?, ?> p ? p : res;
+
+            Number userIdNum = null;
+            if (profile.get("userId") instanceof Number num) {
+                userIdNum = num;
+            } else if (res.get("userId") instanceof Number num) {
+                userIdNum = num;
+            }
+
+            Number ratingNum = null;
+            if (profile.get("totalScore") instanceof Number num) {
+                ratingNum = num;
+            } else if (profile.get("rankingScore") instanceof Number num) {
+                ratingNum = num;
+            } else if (res.get("totalScore") instanceof Number num) {
+                ratingNum = num;
+            } else if (res.get("rankingScore") instanceof Number num) {
+                ratingNum = num;
+            }
+
+            String uname = username;
+            if (profile.get("username") instanceof String s && !s.isBlank()) {
+                uname = s;
+            } else if (res.get("username") instanceof String s && !s.isBlank()) {
+                uname = s;
+            }
 
             sceneManager.getClientState().setJwtToken(jwt);
-            sceneManager.getClientState().setUserId(userIdNum != null ? userIdNum.longValue() : 1L);
-            sceneManager.getClientState().setUsername((String) res.getOrDefault("username", username));
-            sceneManager.getClientState().setRankingScore(ratingNum != null ? ratingNum.longValue() : 1500L);
+            if (userIdNum != null) {
+                sceneManager.getClientState().setUserId(userIdNum.longValue());
+            }
+            sceneManager.getClientState().setUsername(uname);
+            sceneManager.getClientState().setRankingScore(ratingNum != null ? ratingNum.longValue() : 0L);
 
             // Connect to TCP Game Server with JWT
             boolean connected = sceneManager.getTcpClient().connectAndLogin(jwt);

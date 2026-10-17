@@ -507,13 +507,36 @@ public class LobbyView {
         updateProfileDisplay();
         renderPlayerCards();
         sceneManager.getRestClient().getProfile().thenAccept(res -> {
-            if (res != null && res.containsKey("userId")) {
-                Number scoreNum = (Number) res.getOrDefault("totalScore", 1500L);
+            if (res != null) {
+                Map<String, Object> data = res;
+                if (res.get("profile") instanceof Map<?, ?> p) {
+                    data = (Map<String, Object>) p;
+                }
+
+                Number scoreNum = null;
+                if (data.get("totalScore") instanceof Number n) {
+                    scoreNum = n;
+                } else if (data.get("rankingScore") instanceof Number n) {
+                    scoreNum = n;
+                } else if (res.get("totalScore") instanceof Number n) {
+                    scoreNum = n;
+                } else if (res.get("rankingScore") instanceof Number n) {
+                    scoreNum = n;
+                }
+
                 if (scoreNum != null) {
                     sceneManager.getClientState().setRankingScore(scoreNum.longValue());
                 }
 
-                Platform.runLater(() -> applyProfileStats(res));
+                if (data.get("username") instanceof String u && !u.isBlank()) {
+                    sceneManager.getClientState().setUsername(u);
+                }
+                if (data.get("userId") instanceof Number uid) {
+                    sceneManager.getClientState().setUserId(uid.longValue());
+                }
+
+                final Map<String, Object> finalData = data;
+                Platform.runLater(() -> applyProfileStats(finalData));
             }
         }).exceptionally(ex -> {
             Platform.runLater(this::updateProfileDisplay);
@@ -524,7 +547,7 @@ public class LobbyView {
     private void updateProfileDisplay() {
         ClientState state = sceneManager.getClientState();
         String username = state.getUsername() != null ? state.getUsername() : "Player";
-        long score = state.getRankingScore() != null ? state.getRankingScore() : 1500L;
+        long score = state.getRankingScore() != null ? state.getRankingScore() : 0L;
 
         if (profileAvatarText != null) {
             profileAvatarText.setText(getInitialChar(username));
@@ -538,6 +561,11 @@ public class LobbyView {
     }
 
     private void applyProfileStats(Map<String, Object> profileData) {
+        if (profileData == null) return;
+        if (profileData.get("profile") instanceof Map<?, ?> p) {
+            profileData = (Map<String, Object>) p;
+        }
+
         updateProfileDisplay();
 
         int matches = getIntValue(profileData, "matchesPlayed", 0);
@@ -624,6 +652,9 @@ public class LobbyView {
                     closeActiveModal();
                     sceneManager.showGameScene(startPayload);
                 });
+            }
+            case RESULT_SAVED -> {
+                Platform.runLater(this::refreshData);
             }
             case ERROR -> {
                 ErrorPayload err = objectMapper.convertValue(msg.getPayload(), ErrorPayload.class);
