@@ -100,7 +100,7 @@ public class HistoryView {
         });
 
         TableColumn<Map<String, Object>, String> opponentCol = new TableColumn<>("Opponent");
-        opponentCol.setPrefWidth(140);
+        opponentCol.setPrefWidth(160);
         opponentCol.setCellValueFactory(data -> {
             Object val = data.getValue().get("opponentUsername");
             if (val == null) val = data.getValue().get("opponentName");
@@ -122,7 +122,7 @@ public class HistoryView {
         });
 
         TableColumn<Map<String, Object>, String> outcomeCol = new TableColumn<>("Outcome");
-        outcomeCol.setPrefWidth(110);
+        outcomeCol.setPrefWidth(130);
         outcomeCol.setCellValueFactory(data -> {
             Object val = data.getValue().get("outcome");
             if (val == null) val = data.getValue().get("result");
@@ -154,7 +154,7 @@ public class HistoryView {
         });
 
         TableColumn<Map<String, Object>, String> scoreCol = new TableColumn<>("Score (Cells)");
-        scoreCol.setPrefWidth(120);
+        scoreCol.setPrefWidth(140);
         scoreCol.setCellValueFactory(data -> {
             Object my = data.getValue().get("myCells");
             if (my == null) my = data.getValue().get("cellsOwned");
@@ -183,7 +183,7 @@ public class HistoryView {
         });
 
         TableColumn<Map<String, Object>, String> deltaCol = new TableColumn<>("Rank Delta");
-        deltaCol.setPrefWidth(100);
+        deltaCol.setPrefWidth(120);
         deltaCol.setCellValueFactory(data -> {
             Object delta = data.getValue().get("rankDelta");
             if (delta == null) delta = data.getValue().get("ratingDelta");
@@ -214,29 +214,8 @@ public class HistoryView {
             }
         });
 
-        TableColumn<Map<String, Object>, String> reasonCol = new TableColumn<>("Reason");
-        reasonCol.setPrefWidth(110);
-        reasonCol.setCellValueFactory(data -> {
-            Object reason = data.getValue().get("endReason");
-            if (reason == null) reason = data.getValue().get("reason");
-            return new SimpleStringProperty(reason != null ? reason.toString() : "TIMEOUT");
-        });
-        reasonCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setStyle("");
-                } else {
-                    setText(item);
-                    setStyle("-fx-text-fill: #FFFFFF; -fx-font-weight: 700; -fx-font-size: 13px;");
-                }
-            }
-        });
-
         TableColumn<Map<String, Object>, String> dateCol = new TableColumn<>("Played At");
-        dateCol.setPrefWidth(160);
+        dateCol.setPrefWidth(200);
         dateCol.setCellValueFactory(data -> {
             Object playedAt = data.getValue().get("playedAt");
             if (playedAt == null) playedAt = data.getValue().get("endedAt");
@@ -264,7 +243,7 @@ public class HistoryView {
             }
         });
 
-        table.getColumns().addAll(idCol, opponentCol, outcomeCol, scoreCol, deltaCol, reasonCol, dateCol);
+        table.getColumns().addAll(idCol, opponentCol, outcomeCol, scoreCol, deltaCol, dateCol);
         root.setCenter(table);
 
         // Pagination Bar
