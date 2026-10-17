@@ -1,10 +1,10 @@
 # ========================================================
 # Cau hinh ket noi danh cho Game Client
 # ========================================================
-# Khi choi 2 may:
-# - May chu (Host): de mac dinh la localhost
-# - May khach (Client): doi "localhost" thanh dia chi IP cua May chu (vi du: 192.168.1.105)
+# Khi choi 2 may qua Radmin VPN:
+# - May chu (Host): IP Radmin la 26.110.18.202 (chay Database, Backend, Game Server)
+# - May khach (Client): Chi can chay MainLauncher.java va ket noi toi 26.110.18.202
 
-backend.url=http://localhost:8080
-gameserver.host=localhost
+backend.url=http://26.110.18.202:8080
+gameserver.host=26.110.18.202
 gameserver.port=8888

@@ -5,9 +5,65 @@
 
 ---
 
-## ⚡ HƯỚNG DẪN KHỞI CHẠY NHANH (QUICK START)
+## 🌐 HƯỚNG DẪN KẾT NỐI CHƠI 2 MÁY QUA RADMIN VPN (QUAN TRỌNG)
 
-Dự án cung cấp **2 cách khởi chạy**:
+Hệ thống đã được cấu hình sẵn địa chỉ IP Radmin VPN máy chủ: **`26.110.18.202`**. Khi chơi giữa 2 máy (hoặc nhiều máy) qua mạng ảo Radmin VPN, quy trình cực kỳ đơn giản:
+
+---
+
+### 🖥️ 1. DÀNH CHO MÁY CHỦ (SERVER HOST - IP: `26.110.18.202`)
+> *Máy chủ chịu trách nhiệm khởi chạy Cơ sở dữ liệu, Spring Boot Backend (Port 8080) và TCP Game Server (Port 8888).*
+
+1. **Bật Radmin VPN**: Đảm bảo Radmin VPN đã bật và có địa chỉ IP `26.110.18.202`, tạo phòng mạng (Network Room) để máy khách tham gia.
+2. **Khởi động Database**:
+   - Nếu dùng Docker (khuyên dùng):
+     ```bash
+     docker compose up -d
+     ```
+   - Hoặc bật MySQL Server cục bộ trên máy (port `3306`, database `territorial_paint`).
+3. **Khởi chạy Spring Boot Backend**:
+   - Trong IDE (IntelliJ / VS Code): Mở `game-backend/src/main/java/com/territorypaint/backend/BackendApplication.java` $\rightarrow$ Nhấn **Run ▶**
+   - Hoặc bằng Terminal:
+     ```bash
+     mvn spring-boot:run -pl game-backend
+     ```
+4. **Khởi chạy Game Server (TCP Socket)**:
+   - Trong IDE: Mở `game-server/src/main/java/com/territorypaint/server/GameServer.java` $\rightarrow$ Nhấn **Run ▶**
+   - Hoặc bằng Terminal:
+     ```bash
+     mvn exec:java -pl game-server -Dexec.mainClass="com.territorypaint.server.GameServer"
+     ```
+5. *(Tùy chọn)* **Tham gia chơi game**: Mở file `game-client/src/main/java/com/territorypaint/client/MainLauncher.java` $\rightarrow$ Nhấn **Run ▶** để mở giao diện game.
+
+---
+
+### 🎮 2. DÀNH CHO MÁY KHÁCH (CLIENT - BẠN BÈ / NGƯỜI CHƠI KHÁC)
+> **CỰC KỲ ĐƠN GIẢN: MÁY KHÁCH KHÔNG CẦN CÀI ĐẶT MYSQL, KHÔNG CẦN CHẠY BACKEND HAY GAME SERVER!**
+
+1. **Kết nối mạng**: Cài đặt và bật **Radmin VPN**, tham gia (Join) vào cùng phòng mạng với máy chủ (`26.110.18.202`).
+2. **Cấu hình IP (Đã thiết lập sẵn)**:
+   - File cấu hình `game-client/src/main/resources/application.properties` đã được trỏ sẵn tới máy chủ:
+     ```properties
+     backend.url=http://26.110.18.202:8080
+     gameserver.host=26.110.18.202
+     gameserver.port=8888
+     ```
+3. **Khởi chạy Game Client**:
+   - Mở dự án bằng IDE (IntelliJ IDEA / VS Code / Eclipse).
+   - Mở file:
+     `game-client/src/main/java/com/territorypaint/client/MainLauncher.java`
+   - Nhấn nút **Run ▶** (hoặc `Shift + F10` trên IntelliJ / `F5` trên VS Code).
+   - *(Lưu ý: Luôn chạy từ file `MainLauncher.java` để JavaFX nạp đầy đủ runtime, không bị lỗi module).*
+4. **Bắt đầu trải nghiệm**:
+   - Bấm **Register** để tạo tài khoản mới.
+   - Bấm **Login** để đăng nhập vào **Sảnh chờ (Lobby)**.
+   - Khi cả 2 máy cùng online tại Lobby, chọn người chơi và bấm **Challenge** để gửi lời mời thách đấu vào trận!
+
+---
+
+## ⚡ HƯỚNG DẪN KHỞI CHẠY TRÊN CÙNG 1 MÁY (LOCAL TESTING)
+
+Nếu bạn muốn test cả 2 người chơi trên cùng 1 máy tính:
 
 ### 🔹 Cách A (Không dùng Docker - Chạy trực tiếp trên máy thật):
 1. **Cài đặt & cấu hình MySQL Server**:
@@ -42,18 +98,19 @@ Dự án cung cấp **2 cách khởi chạy**:
 ---
 
 ## 📋 MỤC LỤC
-1. [⚡ Hướng Dẫn Khởi Chạy Nhanh (Quick Start)](#-hướng-dẫn-khởi-chạy-nhanh-quick-start)
-2. [Giới Thiệu Tổng Quan](#-giới-thiệu-tổng-quan)
-3. [🚀 Hướng Dẫn Cài Đặt Chi Tiết & Khởi Chạy Từng Bước](#-hướng-dẫn-cài-đặt-chi-tiết--khởi-chạy-từng-bước)
-4. [🕹 Hướng Dẫn Trải Nghiệm Trò Chơi (User Guide)](#-hướng-dẫn-trải-nghiệm-trò-chơi-user-guide)
-5. [Kiến Trúc Hệ Thống (System Architecture)](#-kiến-trúc-hệ-thống-system-architecture)
-6. [Công Nghệ Sử Dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
-7. [Luật Chơi & Cơ Chế Game (Game Mechanics & Rules)](#-luật-chơi--cơ-chế-game-game-mechanics--rules)
-8. [Chi Tiết Thiết Kế Cơ Sở Dữ Liệu (Database Schema)](#-chi-tiết-thiết-kế-cơ-sở-dữ-liệu-database-schema)
-9. [Giao Thức Truyền Tin & An Toàn Dữ Liệu](#-giao-thức-truyền-tin--an-toàn-dữ-liệu)
-10. [Yêu Cầu Môi Trường (Prerequisites)](#-yêu-cầu-môi-trường-prerequisites)
-11. [Cấu Hình Nâng Cao (Advanced Configuration)](#-cấu-hình-nâng-cao-advanced-configuration)
-12. [Cấu Trúc Thư Mục Dự Án (Directory Structure)](#-cấu-trúc-thư-mục-dự-án-directory-structure)
+1. [🌐 Hướng Dẫn Kết Nối Chơi 2 Máy Qua Radmin VPN](#-hướng-dẫn-kết-nối-chơi-2-máy-qua-radmin-vpn-quan-trọng)
+2. [⚡ Hướng Dẫn Khởi Chạy Trên Cùng 1 Máy (Local Testing)](#-hướng-dẫn-khởi-chạy-trên-cùng-1-máy-local-testing)
+3. [Giới Thiệu Tổng Quan](#-giới-thiệu-tổng-quan)
+4. [🚀 Hướng Dẫn Cài Đặt Chi Tiết & Khởi Chạy Từng Bước](#-hướng-dẫn-cài-đặt-chi-tiết--khởi-chạy-từng-bước)
+5. [🕹 Hướng Dẫn Trải Nghiệm Trò Chơi (User Guide)](#-hướng-dẫn-trải-nghiệm-trò-chơi-user-guide)
+6. [Kiến Trúc Hệ Thống (System Architecture)](#-kiến-trúc-hệ-thống-system-architecture)
+7. [Công Nghệ Sử Dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
+8. [Luật Chơi & Cơ Chế Game (Game Mechanics & Rules)](#-luật-chơi--cơ-chế-game-game-mechanics--rules)
+9. [Chi Tiết Thiết Kế Cơ Sở Dữ Liệu (Database Schema)](#-chi-tiết-thiết-kế-cơ-sở-dữ-liệu-database-schema)
+10. [Giao Thức Truyền Tin & An Toàn Dữ Liệu](#-giao-thức-truyền-tin--an-toàn-dữ-liệu)
+11. [Yêu Cầu Môi Trường (Prerequisites)](#-yêu-cầu-môi-trường-prerequisites)
+12. [Cấu Hình Nâng Cao (Advanced Configuration)](#-cấu-hình-nâng-cao-advanced-configuration)
+13. [Cấu Trúc Thư Mục Dự Án (Directory Structure)](#-cấu-trúc-thư-mục-dự-án-directory-structure)
 
 ---
 
@@ -128,16 +185,21 @@ mvn clean install
 
 ### Bước 5: Khởi chạy Game Client (JavaFX Application)
 
-* **Chạy trên IDE (VS Code / IntelliJ)**:
-  Mở file `game-client/src/main/java/com/territorypaint/client/MainLauncher.java` $\rightarrow$ Click **Run ▶**  
-  *(Lưu ý: Chạy `MainLauncher` thay vì `GameApplication` để tránh lỗi missing JavaFX runtime)*.
+* **Đối với Máy Khách (Client)**:
+  - Chỉ cần đảm bảo đã kết nối chung phòng Radmin VPN với Máy chủ (`26.110.18.202`).
+  - Mở file: `game-client/src/main/java/com/territorypaint/client/MainLauncher.java` $\rightarrow$ Nhấn **Run ▶**  
+  - *Không cần chạy database, backend hay game server.*
+
+* **Đối với Máy Chủ (Server)**:
+  - Sau khi Backend và Game Server đã khởi động ở Bước 3 & 4, mở `MainLauncher.java` $\rightarrow$ Nhấn **Run ▶** để mở Client của Player 1.
+
 * **Chạy bằng Terminal**:
   ```bash
   mvn javafx:run -pl game-client
   ```
 
-> 💡 **Mẹo chạy tự động 1-Click trên Windows**:  
-> Double-click vào file [run-all.bat](file:///d:/code%20btl/ltm/run-all.bat) ở thư mục gốc để tự động bật cả Backend, Server và 2 Client cùng lúc.
+> 💡 **Mẹo chạy tự động 1-Click trên Windows (khi test cục bộ trên máy chủ)**:  
+> Double-click vào file `run-all.bat` ở thư mục gốc để tự động bật đồng thời Backend, Server và Client.
 
 ---
 
