@@ -47,6 +47,7 @@ public class GameRoom {
     private Instant matchStartedAt;
     private Instant matchDeadlineAt;
     private ScheduledFuture<?> readyTimeoutTask;
+    private ScheduledFuture<?> matchCountdownTask;
     private ScheduledFuture<?> matchTimerTask;
     private ScheduledFuture<?> matchEndTask;
     private ScheduledFuture<?> rematchTimeoutTask;
@@ -123,22 +124,36 @@ public class GameRoom {
                 return;
             }
 
+            int readySlot = 0;
             if (session.getUserId().equals(player1Session.getUserId())) {
                 ready1 = true;
+                readySlot = 1;
                 logger.info("Player 1 ({}) is READY in room {}", session.getUsername(), roomId);
             } else if (session.getUserId().equals(player2Session.getUserId())) {
                 ready2 = true;
+                readySlot = 2;
                 logger.info("Player 2 ({}) is READY in room {}", session.getUsername(), roomId);
             }
 
-            if (ready1 && ready2) {
+            int readyCount = (ready1 ? 1 : 0) + (ready2 ? 1 : 0);
+            boolean allReady = ready1 && ready2;
+
+            sendToBoth(Message.event(ActionType.READY, Map.of(
+                    "userId", session.getUserId(),
+                    "slot", readySlot,
+                    "readyCount", readyCount,
+                    "allReady", allReady
+            )));
+
+            if (allReady) {
                 if (readyTimeoutTask != null) readyTimeoutTask.cancel(false);
-                startMatch();
+                matchCountdownTask = ConcurrentUtils.getScheduler().schedule(() -> submitEvent(this::startMatch), 3, TimeUnit.SECONDS);
             }
         });
     }
 
     private void startMatch() {
+        if (status != RoomStatus.WAITING_READY) return;
         this.status = RoomStatus.PLAYING;
         player1Session.setStatus(PlayerStatus.PLAYING);
         player2Session.setStatus(PlayerStatus.PLAYING);
@@ -376,6 +391,7 @@ public class GameRoom {
 
     private void cancelMatchTimers() {
         if (readyTimeoutTask != null) readyTimeoutTask.cancel(false);
+        if (matchCountdownTask != null) matchCountdownTask.cancel(false);
         if (matchTimerTask != null) matchTimerTask.cancel(false);
         if (matchEndTask != null) matchEndTask.cancel(false);
         if (rematchTimeoutTask != null) rematchTimeoutTask.cancel(false);

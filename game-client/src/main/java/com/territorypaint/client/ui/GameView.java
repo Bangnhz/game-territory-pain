@@ -72,6 +72,18 @@ public class GameView {
     private Label modalRematchStatusLabel;
     private Button modalRematchButton;
 
+    // Preparation & Ready Overlay elements
+    private StackPane prepOverlay;
+    private VBox prepCard;
+    private Label prepBadge;
+    private Label prepTimerLabel;
+    private Label prepSubtitleLabel;
+    private Label prepStatusBadge;
+    private Label prepCountdownNum;
+    private ScheduledExecutorService prepCountdownScheduler;
+    private ScheduledFuture<?> prepCountdownTask;
+    private volatile boolean matchPlaying = false;
+
     public GameView(SceneManager sceneManager) {
         this.sceneManager = sceneManager;
         this.root = new StackPane();
@@ -99,11 +111,15 @@ public class GameView {
     }
 
     public void resetView() {
+        cancelPrepCountdown();
+        matchPlaying = false;
         onMatchStart(null);
     }
 
     public void onMatchStart(MatchStartPayload payload) {
         closeResultModal();
+        cancelPrepCountdown();
+        matchPlaying = false;
 
         if (payload != null && payload.getSnapshot() != null) {
             this.latestSnapshot = payload.getSnapshot();
@@ -114,11 +130,45 @@ public class GameView {
             this.matchId = sceneManager.getClientState().getCurrentMatchId();
         }
 
-        this.readyButton.setVisible(true);
-        this.readyButton.setDisable(false);
-        this.readyButton.setText("Click READY to Start");
+        // Reset preparation overlay in center of board
+        prepOverlay.setVisible(true);
+        prepOverlay.setManaged(true);
+        prepOverlay.setOpacity(1.0);
+
+        prepBadge.setText("⚡ MATCH PREPARATION");
+        prepBadge.setVisible(true);
+        prepBadge.setManaged(true);
+
+        prepTimerLabel.setText("10s");
+        prepTimerLabel.setStyle("-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.6), 16, 0, 0, 0);");
+        prepTimerLabel.setVisible(true);
+        prepTimerLabel.setManaged(true);
+
+        prepSubtitleLabel.setVisible(true);
+        prepSubtitleLabel.setManaged(true);
+
+        prepStatusBadge.setText("0/2 PLAYERS READY");
+        prepStatusBadge.setStyle(null);
+        prepStatusBadge.setVisible(true);
+        prepStatusBadge.setManaged(true);
+
+        readyButton.setVisible(true);
+        readyButton.setManaged(true);
+        readyButton.setDisable(false);
+        readyButton.setText("⚡ READY TO PLAY");
+        readyButton.getStyleClass().removeAll("btn-ready-submitted");
+        if (!readyButton.getStyleClass().contains("btn-ready-start")) {
+            readyButton.getStyleClass().add("btn-ready-start");
+        }
+
+        prepCountdownNum.setVisible(false);
+        prepCountdownNum.setManaged(false);
+        prepCountdownNum.setText("");
+
         this.statusLabel.setText("Waiting for both players to click READY...");
         this.timerLabel.setText("60s");
+
+        startPrep10sCountdown(10);
 
         if (latestSnapshot != null) {
             renderSnapshot(latestSnapshot);
@@ -159,22 +209,56 @@ public class GameView {
         hud.getChildren().addAll(player1ScoreLabel, spacer1, timerLabel, spacer2, player2ScoreLabel, soundToggleBtn);
         gameLayout.setTop(hud);
 
-        // Center Game Board Canvas
-        VBox centerBox = new VBox(15);
-        centerBox.setAlignment(Pos.CENTER);
-
-        statusLabel = new Label("Waiting for players...");
-        statusLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #94A3B8;");
-
+        // Center Game Board Canvas & Centered Preparation Overlay
         canvas = new Canvas(GRID_SIZE * CELL_SIZE, GRID_SIZE * CELL_SIZE);
         canvas.setFocusTraversable(true);
         canvas.setOnKeyPressed(this::handleKeyPressed);
 
-        readyButton = new Button("Click READY to Start");
-        readyButton.setStyle("-fx-background-color: #10B981; -fx-font-size: 16px; -fx-padding: 10 30;");
+        prepOverlay = new StackPane();
+        prepOverlay.setAlignment(Pos.CENTER);
+        prepOverlay.setStyle("-fx-background-color: rgba(15, 23, 42, 0.72); -fx-background-radius: 12px;");
+        prepOverlay.setMaxSize(GRID_SIZE * CELL_SIZE, GRID_SIZE * CELL_SIZE);
+
+        prepCard = new VBox(14);
+        prepCard.setAlignment(Pos.CENTER);
+        prepCard.setMaxWidth(380);
+        prepCard.getStyleClass().add("ready-prep-card");
+
+        prepBadge = new Label("⚡ MATCH PREPARATION");
+        prepBadge.getStyleClass().add("prep-badge");
+
+        prepTimerLabel = new Label("10s");
+        prepTimerLabel.setStyle("-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.6), 16, 0, 0, 0);");
+
+        prepSubtitleLabel = new Label("Both players must click READY to start");
+        prepSubtitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #94A3B8; -fx-font-weight: 600;");
+
+        prepStatusBadge = new Label("0/2 PLAYERS READY");
+        prepStatusBadge.getStyleClass().add("prep-status-badge");
+
+        readyButton = new Button("⚡ READY TO PLAY");
+        readyButton.getStyleClass().add("btn-ready-start");
+        addScaleHoverAnimation(readyButton, 1.05);
         readyButton.setOnAction(e -> sendReady());
 
-        centerBox.getChildren().addAll(statusLabel, canvas, readyButton);
+        prepCountdownNum = new Label("");
+        prepCountdownNum.getStyleClass().add("prep-countdown-num");
+        prepCountdownNum.setVisible(false);
+        prepCountdownNum.setManaged(false);
+
+        prepCard.getChildren().addAll(prepBadge, prepTimerLabel, prepSubtitleLabel, prepStatusBadge, readyButton, prepCountdownNum);
+        prepOverlay.getChildren().add(prepCard);
+
+        StackPane boardStack = new StackPane();
+        boardStack.setAlignment(Pos.CENTER);
+        boardStack.getChildren().addAll(canvas, prepOverlay);
+
+        VBox centerBox = new VBox(12);
+        centerBox.setAlignment(Pos.CENTER);
+        statusLabel = new Label("Match preparation phase. Click Ready when you are prepared.");
+        statusLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #94A3B8;");
+
+        centerBox.getChildren().addAll(statusLabel, boardStack);
         gameLayout.setCenter(centerBox);
 
         // Modal Overlay for Match Finished dialog
@@ -189,9 +273,15 @@ public class GameView {
     }
 
     private void sendReady() {
+        SoundManager.getInstance().playClickSfx();
         readyButton.setDisable(true);
-        readyButton.setText("READY Submitted!");
+        readyButton.setText("✅ READY SUBMITTED");
+        readyButton.getStyleClass().removeAll("btn-ready-start");
+        readyButton.getStyleClass().add("btn-ready-submitted");
         statusLabel.setText("Waiting for opponent to get READY...");
+        prepStatusBadge.setText("1/2 PLAYERS READY (WAITING FOR OPPONENT...)");
+        prepStatusBadge.setStyle("-fx-text-fill: #38BDF8;");
+
         UUID mId = null;
         try {
             if (matchId != null && !matchId.isBlank()) {
@@ -202,7 +292,7 @@ public class GameView {
     }
 
     private void handleKeyPressed(KeyEvent event) {
-        if (latestSnapshot == null || matchId == null) return;
+        if (latestSnapshot == null || matchId == null || !matchPlaying) return;
 
         Direction dir = null;
         if (event.getCode() == KeyCode.W || event.getCode() == KeyCode.UP) dir = Direction.UP;
@@ -235,11 +325,35 @@ public class GameView {
                     Platform.runLater(() -> onMatchStart(payload));
                 }
             }
+            case READY -> {
+                if (msg.getPayload() instanceof Map<?, ?> map) {
+                    Object allReadyObj = map.get("allReady");
+                    boolean allReady = Boolean.TRUE.equals(allReadyObj) || "true".equalsIgnoreCase(String.valueOf(allReadyObj));
+
+                    Platform.runLater(() -> {
+                        if (allReady) {
+                            start3SecondCountdown();
+                        } else {
+                            if (readyButton.isDisabled()) {
+                                prepStatusBadge.setText("1/2 PLAYERS READY (WAITING FOR OPPONENT...)");
+                            } else {
+                                prepStatusBadge.setText("1/2 PLAYERS READY (OPPONENT IS READY!)");
+                                prepStatusBadge.setStyle("-fx-text-fill: #34D399; -fx-font-weight: 800;");
+                            }
+                        }
+                    });
+                }
+            }
             case MATCH_BEGIN -> {
                 Platform.runLater(() -> {
                     statusLabel.setText("MATCH STARTED! Use W/A/S/D or Arrow Keys to paint territory!");
-                    readyButton.setVisible(false);
-                    canvas.requestFocus();
+                    timerLabel.setText("60s");
+                    if (prepOverlay.isVisible() && !prepCountdownNum.isVisible()) {
+                        start3SecondCountdown();
+                    } else if (!prepOverlay.isVisible()) {
+                        matchPlaying = true;
+                        canvas.requestFocus();
+                    }
                 });
             }
             case MAP_UPDATE -> {
@@ -698,9 +812,117 @@ public class GameView {
 
     private void closeResultModal() {
         cancelResultCountdown();
+        cancelPrepCountdown();
         modalOverlay.getChildren().clear();
         modalOverlay.setVisible(false);
         modalOverlay.setManaged(false);
+    }
+
+    private void startPrep10sCountdown(int seconds) {
+        cancelPrepCountdown();
+        final int[] remaining = {seconds};
+        prepCountdownScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "PrepCountdownThread");
+            t.setDaemon(true);
+            return t;
+        });
+        prepCountdownTask = prepCountdownScheduler.scheduleAtFixedRate(() -> {
+            remaining[0]--;
+            int sec = Math.max(0, remaining[0]);
+            Platform.runLater(() -> {
+                prepTimerLabel.setText(sec + "s");
+                if (sec <= 3) {
+                    prepTimerLabel.setStyle("-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #EF4444; -fx-effect: dropshadow(three-pass-box, rgba(239, 68, 68, 0.6), 16, 0, 0, 0);");
+                }
+            });
+            if (sec <= 0) {
+                cancelPrepCountdown();
+            }
+        }, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void start3SecondCountdown() {
+        cancelPrepCountdown();
+
+        Platform.runLater(() -> {
+            prepBadge.setText("🔥 BATTLE STARTS IN");
+            prepTimerLabel.setVisible(false);
+            prepTimerLabel.setManaged(false);
+            prepSubtitleLabel.setVisible(false);
+            prepSubtitleLabel.setManaged(false);
+            prepStatusBadge.setVisible(false);
+            prepStatusBadge.setManaged(false);
+            readyButton.setVisible(false);
+            readyButton.setManaged(false);
+
+            prepCountdownNum.setVisible(true);
+            prepCountdownNum.setManaged(true);
+            prepCountdownNum.setStyle("-fx-font-size: 80px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.7), 24, 0, 0, 0);");
+            prepCountdownNum.setText("3");
+            animateCountdownPulse(prepCountdownNum);
+            SoundManager.getInstance().playMoveSfx();
+        });
+
+        final int[] step = {2};
+        prepCountdownScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "BattleCountdownThread");
+            t.setDaemon(true);
+            return t;
+        });
+
+        prepCountdownTask = prepCountdownScheduler.scheduleAtFixedRate(() -> {
+            int currentStep = step[0]--;
+            Platform.runLater(() -> {
+                if (currentStep == 2) {
+                    prepCountdownNum.setText("2");
+                    animateCountdownPulse(prepCountdownNum);
+                    SoundManager.getInstance().playMoveSfx();
+                } else if (currentStep == 1) {
+                    prepCountdownNum.setText("1");
+                    animateCountdownPulse(prepCountdownNum);
+                    SoundManager.getInstance().playMoveSfx();
+                } else if (currentStep <= 0) {
+                    cancelPrepCountdown();
+                    prepCountdownNum.setText("PAINT!");
+                    prepCountdownNum.setStyle("-fx-font-size: 64px; -fx-font-weight: 900; -fx-text-fill: #10B981; -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.8), 24, 0, 0, 0);");
+                    animateCountdownPulse(prepCountdownNum);
+                    SoundManager.getInstance().playClickSfx();
+
+                    FadeTransition ft = new FadeTransition(Duration.millis(350), prepOverlay);
+                    ft.setFromValue(1.0);
+                    ft.setToValue(0.0);
+                    ft.setDelay(Duration.millis(300));
+                    ft.setOnFinished(ev -> {
+                        prepOverlay.setVisible(false);
+                        prepOverlay.setManaged(false);
+                        matchPlaying = true;
+                        canvas.requestFocus();
+                    });
+                    ft.play();
+                }
+            });
+        }, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void animateCountdownPulse(Node node) {
+        if (node == null) return;
+        node.setScaleX(1.4);
+        node.setScaleY(1.4);
+        ScaleTransition st = new ScaleTransition(Duration.millis(320), node);
+        st.setToX(1.0);
+        st.setToY(1.0);
+        st.play();
+    }
+
+    private void cancelPrepCountdown() {
+        if (prepCountdownTask != null && !prepCountdownTask.isDone()) {
+            prepCountdownTask.cancel(true);
+            prepCountdownTask = null;
+        }
+        if (prepCountdownScheduler != null && !prepCountdownScheduler.isShutdown()) {
+            prepCountdownScheduler.shutdownNow();
+            prepCountdownScheduler = null;
+        }
     }
 
     private void cancelResultCountdown() {
