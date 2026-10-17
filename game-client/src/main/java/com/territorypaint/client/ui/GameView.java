@@ -63,6 +63,7 @@ public class GameView {
     private Button readyButton;
 
     private long lastMoveTimeMs = 0;
+    private volatile long lastKeyPressedHandledMs = 0;
     private volatile Direction pendingDirection = null;
     private ScheduledFuture<?> bufferedMoveTask = null;
     private SnapshotDTO latestSnapshot;
@@ -270,6 +271,7 @@ public class GameView {
         root.getChildren().addAll(gameLayout, modalOverlay);
         root.setFocusTraversable(true);
         root.addEventFilter(KeyEvent.KEY_PRESSED, this::handleKeyPressed);
+        root.addEventFilter(KeyEvent.KEY_TYPED, this::handleKeyTyped);
         root.setOnMouseClicked(e -> canvas.requestFocus());
 
         renderEmptyGrid();
@@ -295,31 +297,94 @@ public class GameView {
         sceneManager.getTcpClient().send(Message.event(ActionType.READY, new ReadyPayload(mId)));
     }
 
+    private Direction resolveDirection(KeyEvent event) {
+        if (event == null)
+            return null;
+
+        KeyCode code = event.getCode();
+        if (code == KeyCode.UP || code == KeyCode.W)
+            return Direction.UP;
+        if (code == KeyCode.DOWN || code == KeyCode.S)
+            return Direction.DOWN;
+        if (code == KeyCode.LEFT || code == KeyCode.A)
+            return Direction.LEFT;
+        if (code == KeyCode.RIGHT || code == KeyCode.D)
+            return Direction.RIGHT;
+
+        // Check text/character for Vietnamese IME mappings (Telex / VNI)
+        String text = event.getText();
+        if (text == null || text.isEmpty()) {
+            text = event.getCharacter();
+        }
+        if (text != null && !text.isEmpty()) {
+            char c = Character.toLowerCase(text.charAt(0));
+            switch (c) {
+                // W / UP: 'w', and Telex/VNI vowel variants ('ư', 'ă')
+                case 'w':
+                case 'ư':
+                case 'ă':
+                    return Direction.UP;
+
+                // S / DOWN: 's', and vowels with Telex acute accent 's' ('á', 'ứ', 'ắ', 'ấ')
+                case 's':
+                case 'á':
+                case 'ứ':
+                case 'ắ':
+                case 'ấ':
+                    return Direction.DOWN;
+
+                // A / LEFT: 'a', and Telex double 'a' ('â')
+                case 'a':
+                case 'â':
+                    return Direction.LEFT;
+
+                // D / RIGHT: 'd', and Telex double 'd' ('đ')
+                case 'd':
+                case 'đ':
+                    return Direction.RIGHT;
+            }
+        }
+        return null;
+    }
+
     private void handleKeyPressed(KeyEvent event) {
         if (!matchPlaying || latestSnapshot == null || matchId == null)
             return;
 
-        Direction dir = null;
-        if (event.getCode() == KeyCode.W || event.getCode() == KeyCode.UP)
-            dir = Direction.UP;
-        else if (event.getCode() == KeyCode.S || event.getCode() == KeyCode.DOWN)
-            dir = Direction.DOWN;
-        else if (event.getCode() == KeyCode.A || event.getCode() == KeyCode.LEFT)
-            dir = Direction.LEFT;
-        else if (event.getCode() == KeyCode.D || event.getCode() == KeyCode.RIGHT)
-            dir = Direction.RIGHT;
-
+        Direction dir = resolveDirection(event);
         if (dir == null)
             return;
         event.consume();
+        lastKeyPressedHandledMs = System.currentTimeMillis();
 
+        processDirectionInput(dir);
+    }
+
+    private void handleKeyTyped(KeyEvent event) {
+        if (!matchPlaying || latestSnapshot == null || matchId == null)
+            return;
+
+        // If KEY_PRESSED already handled this keystroke within 40ms, don't duplicate
+        if (System.currentTimeMillis() - lastKeyPressedHandledMs < 40)
+            return;
+
+        Direction dir = resolveDirection(event);
+        if (dir == null)
+            return;
+        event.consume();
+        lastKeyPressedHandledMs = System.currentTimeMillis();
+
+        processDirectionInput(dir);
+    }
+
+    private void processDirectionInput(Direction dir) {
         long now = System.currentTimeMillis();
         long elapsed = now - lastMoveTimeMs;
 
         if (elapsed < 100) {
             // Buffer the requested move so fast direction changes aren't dropped
             pendingDirection = dir;
-            scheduleBufferedMove(100 - elapsed);
+            scheduleBufferedMove(105 - elapsed);
             return;
         }
 
@@ -340,12 +405,16 @@ public class GameView {
         bufferedMoveTask = prepCountdownScheduler.schedule(() -> {
             Platform.runLater(() -> {
                 if (pendingDirection != null && matchPlaying) {
+                    long now = System.currentTimeMillis();
+                    long diff = now - lastMoveTimeMs;
+                    if (diff < 100) {
+                        // Reschedule if thread woke up slightly early on OS timer resolution
+                        scheduleBufferedMove(102 - diff);
+                        return;
+                    }
                     Direction d = pendingDirection;
                     pendingDirection = null;
-                    long now = System.currentTimeMillis();
-                    if (now - lastMoveTimeMs >= 100) {
-                        executeMove(d);
-                    }
+                    executeMove(d);
                 }
             });
         }, Math.max(10, delayMs), TimeUnit.MILLISECONDS);
