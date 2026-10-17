@@ -615,5 +615,97 @@
     -fx-padding: 4 14;
 }
 
+/* --------------------------------------------------------------------------
+   MATCH CANCELLED CYBER MODAL SYSTEM
+   -------------------------------------------------------------------------- */
+.modal-card-cancelled {
+    -fx-background-color: linear-gradient(to bottom, #1E1612, #100C0A);
+    -fx-background-radius: 20px;
+    -fx-border-color: rgba(245, 158, 11, 0.7);
+    -fx-border-radius: 20px;
+    -fx-border-width: 2px;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.4), 32, 0, 0, 8);
+}
+
+.modal-badge-cancelled {
+    -fx-background-color: rgba(245, 158, 11, 0.18);
+    -fx-background-radius: 12px;
+    -fx-border-color: rgba(245, 158, 11, 0.6);
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #FBBF24;
+    -fx-font-size: 11px;
+    -fx-font-weight: 800;
+    -fx-padding: 4 12;
+}
+
+.badge-safe-lp {
+    -fx-background-color: rgba(59, 130, 246, 0.15);
+    -fx-background-radius: 10px;
+    -fx-border-color: rgba(59, 130, 246, 0.4);
+    -fx-border-radius: 10px;
+    -fx-border-width: 1px;
+    -fx-text-fill: #93C5FD;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-padding: 6 16;
+}
+
+.btn-cancelled-return {
+    -fx-background-color: linear-gradient(to right, #F59E0B, #D97706);
+    -fx-background-radius: 12px;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+    -fx-padding: 12 32;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.4), 16, 0, 0, 4);
+}
+
+.btn-cancelled-return:hover {
+    -fx-background-color: linear-gradient(to right, #FBBF24, #F59E0B);
+    -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.7), 24, 0, 0, 0);
+}
+
+/* --------------------------------------------------------------------------
+   CYBER ALERT DIALOG STYLES (JavaFX Alert)
+   -------------------------------------------------------------------------- */
+.cyber-alert-dialog {
+    -fx-background-color: #0F172A;
+}
+
+.cyber-alert-dialog .header-panel {
+    -fx-background-color: #1E293B;
+}
+
+.cyber-alert-dialog .content {
+    -fx-background-color: #0F172A;
+}
+
+.cyber-alert-dialog .label {
+    -fx-text-fill: #E2E8F0;
+    -fx-font-family: 'Segoe UI', Roboto, sans-serif;
+    -fx-font-size: 13px;
+}
+
+.cyber-alert-dialog .button-bar {
+    -fx-background-color: #1E293B;
+    -fx-padding: 10px;
+}
+
+.cyber-alert-dialog .button {
+    -fx-background-color: linear-gradient(to right, #00D2FF, #0077FE);
+    -fx-background-radius: 8px;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 6 18;
+}
+
+.cyber-alert-dialog .button:hover {
+    -fx-background-color: #38BDF8;
+}
+
+
 
 

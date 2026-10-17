@@ -269,19 +269,12 @@ public class GameView {
             }
             case ROOM_CLOSED -> {
                 Platform.runLater(() -> {
-                    closeResultModal();
-                    sceneManager.showLobbyScene();
-
                     String reason = null;
                     if (msg.getPayload() instanceof Map<?, ?> map) {
                         Object r = map.get("reason");
                         if (r != null) reason = r.toString();
                     }
-                    if ("READY_TIMEOUT".equalsIgnoreCase(reason)) {
-                        sceneManager.showAlert("Match Cancelled", "The match was cancelled because one or both players did not click READY in time (10s timeout).", Alert.AlertType.INFORMATION);
-                    } else if ("PLAYER_LEFT".equalsIgnoreCase(reason) || "DISCONNECT".equalsIgnoreCase(reason) || "FORFEIT".equalsIgnoreCase(reason)) {
-                        sceneManager.showAlert("Match Ended", "Opponent left the match or disconnected.", Alert.AlertType.INFORMATION);
-                    }
+                    showMatchCancelledModal(reason);
                 });
             }
         }
@@ -727,5 +720,136 @@ public class GameView {
             st.setToY(1.0);
             st.play();
         });
+    }
+
+    private void showMatchCancelledModal(String reason) {
+        closeResultModal();
+        SoundManager.getInstance().playClickSfx();
+
+        VBox card = new VBox(18);
+        card.setAlignment(Pos.CENTER);
+        card.setMaxWidth(480);
+        card.setPadding(new Insets(28, 32, 28, 32));
+        card.getStyleClass().addAll("modal-card", "modal-card-cancelled");
+
+        // 1. Top Badges
+        HBox topBadges = new HBox(10);
+        topBadges.setAlignment(Pos.CENTER);
+
+        Label cancelBadge = new Label("⚠️ MATCH CANCELLED");
+        cancelBadge.getStyleClass().add("modal-badge-cancelled");
+
+        String subBadgeText;
+        String descText;
+        if ("READY_TIMEOUT".equalsIgnoreCase(reason)) {
+            subBadgeText = "⏱️ 10s READY TIMEOUT";
+            descText = "The preparation window timed out because one or both players did not click READY in time.";
+        } else if ("PLAYER_LEFT".equalsIgnoreCase(reason) || "DISCONNECT".equalsIgnoreCase(reason) || "FORFEIT".equalsIgnoreCase(reason)) {
+            subBadgeText = "⚡ OPPONENT LEFT";
+            descText = "The match was aborted because the opponent disconnected or left the room.";
+        } else if ("DECLINED".equalsIgnoreCase(reason)) {
+            subBadgeText = "🚫 REMATCH DECLINED";
+            descText = "The rematch challenge was declined by the opponent.";
+        } else if ("REMATCH_TIMEOUT".equalsIgnoreCase(reason)) {
+            subBadgeText = "⌛ REMATCH TIMEOUT";
+            descText = "The 15-second rematch decision window has expired.";
+        } else {
+            subBadgeText = "⚠️ " + (reason != null ? reason : "ABORTED");
+            descText = "The match session was terminated by the game server.";
+        }
+
+        Label subBadge = new Label(subBadgeText);
+        subBadge.getStyleClass().add("result-reason-badge");
+        topBadges.getChildren().addAll(cancelBadge, subBadge);
+
+        // 2. Title & Description
+        VBox titleBox = new VBox(8);
+        titleBox.setAlignment(Pos.CENTER);
+
+        Label titleLabel = new Label("MATCH CANCELLED");
+        titleLabel.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #FBBF24; -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.6), 16, 0, 0, 0);");
+
+        Label descLabel = new Label(descText);
+        descLabel.setWrapText(true);
+        descLabel.setMaxWidth(420);
+        descLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #E2E8F0; -fx-font-weight: 600; -fx-text-alignment: center;");
+
+        titleBox.getChildren().addAll(titleLabel, descLabel);
+
+        // 3. LP Safety Badge
+        Label safeLpBadge = new Label("🛡️ Rating Protected: No LP Gained or Deducted");
+        safeLpBadge.getStyleClass().add("badge-safe-lp");
+
+        // 4. Auto-redirect Countdown
+        VBox redirectBox = new VBox(6);
+        redirectBox.setAlignment(Pos.CENTER);
+
+        ProgressBar redirectBar = new ProgressBar(1.0);
+        redirectBar.getStyleClass().addAll("modal-countdown-bar", "modal-countdown-bar-danger");
+        redirectBar.setPrefWidth(420);
+        redirectBar.setPrefHeight(6);
+
+        Label redirectLabel = new Label("⏳ Returning to lobby in 5s...");
+        redirectLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #94A3B8; -fx-font-weight: 600;");
+
+        redirectBox.getChildren().addAll(redirectBar, redirectLabel);
+
+        // 5. Return Button
+        Button returnBtn = new Button("🚪 RETURN TO LOBBY");
+        returnBtn.getStyleClass().add("btn-cancelled-return");
+        addScaleHoverAnimation(returnBtn, 1.04);
+        returnBtn.setOnAction(e -> {
+            SoundManager.getInstance().playClickSfx();
+            closeResultModal();
+            sceneManager.showLobbyScene();
+        });
+
+        card.getChildren().addAll(topBadges, titleBox, safeLpBadge, redirectBox, returnBtn);
+
+        // 6. Schedule 5s Auto-Redirect
+        long deadlineMs = System.currentTimeMillis() + 5000;
+        resultCountdownScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "MatchCancelledCountdownThread");
+            t.setDaemon(true);
+            return t;
+        });
+        resultCountdownTask = resultCountdownScheduler.scheduleAtFixedRate(() -> {
+            long remainingMs = deadlineMs - System.currentTimeMillis();
+            if (remainingMs <= 0) {
+                cancelResultCountdown();
+                Platform.runLater(() -> {
+                    if (modalOverlay.isVisible()) {
+                        closeResultModal();
+                        sceneManager.showLobbyScene();
+                    }
+                });
+            } else {
+                double progress = Math.max(0.0, (double) remainingMs / 5000.0);
+                int seconds = (int) Math.ceil(remainingMs / 1000.0);
+                Platform.runLater(() -> {
+                    redirectBar.setProgress(progress);
+                    redirectLabel.setText("⏳ Returning to lobby in " + seconds + "s...");
+                });
+            }
+        }, 0, 100, TimeUnit.MILLISECONDS);
+
+        // 7. Entrance Animation
+        modalOverlay.getChildren().setAll(card);
+        modalOverlay.setVisible(true);
+        modalOverlay.setManaged(true);
+
+        card.setScaleX(0.85);
+        card.setScaleY(0.85);
+        card.setOpacity(0.0);
+
+        ScaleTransition st = new ScaleTransition(Duration.millis(260), card);
+        st.setToX(1.0);
+        st.setToY(1.0);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(260), card);
+        ft.setToValue(1.0);
+
+        st.play();
+        ft.play();
     }
 }

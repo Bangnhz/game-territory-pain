@@ -852,16 +852,50 @@ public class LobbyView {
             closeActiveModal();
         } else if ("REJECTED".equalsIgnoreCase(status)) {
             closeActiveModal();
-            sceneManager.showAlert("Challenge Declined", "The opponent declined your challenge request.", Alert.AlertType.INFORMATION);
+            showNoticeModal("Challenge Declined", "The opponent declined your challenge request.", "🚫 REJECTED");
         } else if ("EXPIRED".equalsIgnoreCase(status)) {
             closeActiveModal();
-            sceneManager.showAlert("Challenge Expired", "The challenge timed out because the opponent did not respond.", Alert.AlertType.INFORMATION);
+            showNoticeModal("Challenge Expired", "The challenge timed out because the opponent did not respond in 15 seconds.", "⏰ TIMED OUT");
         } else if ("CANCELLED".equalsIgnoreCase(status)) {
             closeActiveModal();
+            showNoticeModal("Challenge Cancelled", "The challenge was cancelled.", "⚠️ CANCELLED");
         } else if (!"PENDING".equalsIgnoreCase(status)) {
             closeActiveModal();
-            sceneManager.showAlert("Challenge Status", "Challenge " + status + ": " + payload.getReason(), Alert.AlertType.INFORMATION);
+            showNoticeModal("Challenge " + status, payload.getReason() != null ? payload.getReason() : "", "ℹ️ STATUS");
         }
+    }
+
+    public void showNoticeModal(String title, String message, String badgeText) {
+        closeActiveModal();
+        SoundManager.getInstance().playClickSfx();
+
+        VBox card = new VBox(16);
+        card.setAlignment(Pos.CENTER);
+        card.setMaxWidth(420);
+        card.setPadding(new Insets(24, 28, 24, 28));
+        card.getStyleClass().addAll("modal-card", "modal-card-cancelled");
+
+        Label badge = new Label(badgeText != null ? badgeText : "⚠️ NOTICE");
+        badge.getStyleClass().add("modal-badge-cancelled");
+
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-font-size: 22px; -fx-font-weight: 900; -fx-text-fill: #FBBF24;");
+
+        Label msgLabel = new Label(message);
+        msgLabel.setWrapText(true);
+        msgLabel.setMaxWidth(360);
+        msgLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #CBD5E1; -fx-font-weight: 600; -fx-text-alignment: center;");
+
+        Button okBtn = new Button("UNDERSTOOD");
+        okBtn.getStyleClass().add("btn-cancelled-return");
+        addScaleHoverAnimation(okBtn, 1.04);
+        okBtn.setOnAction(e -> {
+            SoundManager.getInstance().playClickSfx();
+            closeActiveModal();
+        });
+
+        card.getChildren().addAll(badge, titleLabel, msgLabel, okBtn);
+        displayModal(card);
     }
 
     private void displayModal(Node content) {

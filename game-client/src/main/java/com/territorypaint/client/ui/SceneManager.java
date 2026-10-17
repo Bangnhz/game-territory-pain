@@ -126,8 +126,18 @@ public class SceneManager {
     public void showAlert(String title, String content, Alert.AlertType type) {
         Platform.runLater(() -> {
             Alert alert = new Alert(type, content, ButtonType.OK);
+            if (stage != null) {
+                alert.initOwner(stage);
+            }
             alert.setTitle(title);
             alert.setHeaderText(null);
+            try {
+                var cssUrl = getClass().getResource("/css/lobby.css");
+                if (cssUrl != null) {
+                    alert.getDialogPane().getStylesheets().add(cssUrl.toExternalForm());
+                }
+            } catch (Exception ignored) {}
+            alert.getDialogPane().getStyleClass().add("cyber-alert-dialog");
             alert.showAndWait();
         });
     }
