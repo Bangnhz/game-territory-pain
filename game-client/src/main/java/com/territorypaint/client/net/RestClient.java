@@ -63,7 +63,14 @@ public class RestClient {
     }
 
     public CompletableFuture<Map<String, Object>> getMatchHistory(int page, int size) {
-        return sendGet("/api/matches/history?page=" + page + "&size=" + size, true);
+        Long myId = com.territorypaint.client.state.ClientState.getInstance().getUserId();
+        return sendGet("/api/matches/history?page=" + page + "&size=" + size, true)
+                .thenCompose(res -> {
+                    if (res != null && res.containsKey("error") && myId != null) {
+                        return sendGet("/api/users/" + myId + "/matches?page=" + page + "&size=" + size, true);
+                    }
+                    return CompletableFuture.completedFuture(res);
+                });
     }
 
     private CompletableFuture<Map<String, Object>> sendPost(String endpoint, Object bodyObj, boolean requireAuth) {
@@ -109,7 +116,18 @@ public class RestClient {
             if (response.body() == null || response.body().isBlank()) {
                 return Map.of("error", "HTTP_" + response.statusCode(), "message", "HTTP error " + response.statusCode());
             }
-            Map<String, Object> map = objectMapper.readValue(response.body(), Map.class);
+            String body = response.body().trim();
+            if (body.startsWith("[")) {
+                java.util.List<?> list = objectMapper.readValue(body, java.util.List.class);
+                return Map.of("items", list, "content", list, "totalElements", list.size(), "totalItems", list.size(), "totalPages", 1);
+            }
+            Map<String, Object> rawMap = objectMapper.readValue(body, Map.class);
+            Map<String, Object> map = new java.util.HashMap<>(rawMap);
+            if (map.containsKey("items") && !map.containsKey("content")) {
+                map.put("content", map.get("items"));
+            } else if (map.containsKey("content") && !map.containsKey("items")) {
+                map.put("items", map.get("content"));
+            }
             if (response.statusCode() >= 400) {
                 // Ensure error or message exists if backend response didn't provide any key
                 if (!map.containsKey("message") && !map.containsKey("error") && !map.containsKey("fields")) {

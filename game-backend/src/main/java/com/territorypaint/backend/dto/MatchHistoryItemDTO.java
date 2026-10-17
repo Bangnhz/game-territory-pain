@@ -106,4 +106,29 @@ public class MatchHistoryItemDTO {
     public void setEndReason(String endReason) {
         this.endReason = endReason;
     }
+
+    // Property aliases for compatibility with client TableView PropertyValueFactory
+    public Integer getCellsOwned() {
+        return myCells;
+    }
+
+    public void setCellsOwned(Integer cellsOwned) {
+        this.myCells = cellsOwned;
+    }
+
+    public Instant getEndedAt() {
+        return playedAt;
+    }
+
+    public void setEndedAt(Instant endedAt) {
+        this.playedAt = endedAt;
+    }
+
+    public String getOpponentName() {
+        return opponentUsername;
+    }
+
+    public void setOpponentName(String opponentName) {
+        this.opponentUsername = opponentName;
+    }
 }

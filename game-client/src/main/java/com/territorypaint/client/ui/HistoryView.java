@@ -90,12 +90,18 @@ public class HistoryView {
         opponentCol.setPrefWidth(140);
         opponentCol.setCellValueFactory(data -> {
             Object val = data.getValue().get("opponentUsername");
+            if (val == null) val = data.getValue().get("opponentName");
+            if (val == null) val = data.getValue().get("opponent");
             return new SimpleStringProperty(val != null ? val.toString() : "Unknown");
         });
 
         TableColumn<Map<String, Object>, String> outcomeCol = new TableColumn<>("Outcome");
         outcomeCol.setPrefWidth(110);
-        outcomeCol.setCellValueFactory(data -> new SimpleStringProperty(String.valueOf(data.getValue().getOrDefault("outcome", "-"))));
+        outcomeCol.setCellValueFactory(data -> {
+            Object val = data.getValue().get("outcome");
+            if (val == null) val = data.getValue().get("result");
+            return new SimpleStringProperty(val != null ? val.toString() : "-");
+        });
         outcomeCol.setCellFactory(col -> new TableCell<Map<String, Object>, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -126,14 +132,23 @@ public class HistoryView {
         scoreCol.setCellValueFactory(data -> {
             Object my = data.getValue().get("myCells");
             if (my == null) my = data.getValue().get("cellsOwned");
+            if (my == null) my = data.getValue().get("score");
             Object opp = data.getValue().get("opponentCells");
-            return new SimpleStringProperty((my != null ? my : "0") + " - " + (opp != null ? opp : "0"));
+            if (opp == null) opp = data.getValue().get("opponentScore");
+            if (my != null && opp != null) {
+                return new SimpleStringProperty(my + " - " + opp);
+            } else if (my != null) {
+                return new SimpleStringProperty(my + " cells");
+            }
+            return new SimpleStringProperty("0 - 0");
         });
 
         TableColumn<Map<String, Object>, String> deltaCol = new TableColumn<>("Rank Delta");
         deltaCol.setPrefWidth(100);
         deltaCol.setCellValueFactory(data -> {
             Object delta = data.getValue().get("rankDelta");
+            if (delta == null) delta = data.getValue().get("ratingDelta");
+            if (delta == null) delta = data.getValue().get("delta");
             if (delta instanceof Number num) {
                 int d = num.intValue();
                 return new SimpleStringProperty(d > 0 ? "+" + d : String.valueOf(d));
@@ -164,6 +179,7 @@ public class HistoryView {
         reasonCol.setPrefWidth(110);
         reasonCol.setCellValueFactory(data -> {
             Object reason = data.getValue().get("endReason");
+            if (reason == null) reason = data.getValue().get("reason");
             return new SimpleStringProperty(reason != null ? reason.toString() : "TIMEOUT");
         });
 
@@ -172,6 +188,7 @@ public class HistoryView {
         dateCol.setCellValueFactory(data -> {
             Object playedAt = data.getValue().get("playedAt");
             if (playedAt == null) playedAt = data.getValue().get("endedAt");
+            if (playedAt == null) playedAt = data.getValue().get("createdAt");
             if (playedAt != null) {
                 String str = playedAt.toString();
                 if (str.contains("T")) {
@@ -214,10 +231,27 @@ public class HistoryView {
         this.currentPage = page;
         sceneManager.getRestClient().getMatchHistory(page, 10)
             .thenAccept(res -> Platform.runLater(() -> {
-                if (res != null && res.containsKey("content")) {
-                    List<Map<String, Object>> content = (List<Map<String, Object>>) res.get("content");
+                List<Map<String, Object>> content = null;
+                if (res != null) {
+                    if (res.get("items") instanceof List<?> l) {
+                        content = (List<Map<String, Object>>) l;
+                    } else if (res.get("content") instanceof List<?> l) {
+                        content = (List<Map<String, Object>>) l;
+                    } else if (res.get("matches") instanceof List<?> l) {
+                        content = (List<Map<String, Object>>) l;
+                    }
+                }
+
+                if (content != null) {
                     list.setAll(content);
-                    Number totalPagesNum = (Number) res.getOrDefault("totalPages", 1);
+                    Number totalPagesNum = null;
+                    if (res.get("totalPages") instanceof Number num) {
+                        totalPagesNum = num;
+                    } else if (res.get("totalElements") instanceof Number num) {
+                        totalPagesNum = (int) Math.ceil(num.doubleValue() / 10.0);
+                    } else if (res.get("totalItems") instanceof Number num) {
+                        totalPagesNum = (int) Math.ceil(num.doubleValue() / 10.0);
+                    }
                     this.totalPages = totalPagesNum != null ? Math.max(1, totalPagesNum.intValue()) : 1;
                     pageLabel.setText("Page " + (currentPage + 1) + " of " + Math.max(1, totalPages));
                     prevBtn.setDisable(currentPage == 0);

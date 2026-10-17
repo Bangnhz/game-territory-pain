@@ -19,19 +19,23 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
-    
+
     private final UserService userService;
     
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.territorypaint.backend.service.MatchService matchService;
+
     public UserController(UserService userService) {
         this.userService = userService;
     }
-    
+
     /**
      * Get profile information for the authenticated user.
      * Requirements: 10.1, 10.2
      * 
      * Requires JWT authentication. Returns user profile with statistics including
-     * userId, username, fullName, totalScore, matchesPlayed, matchesWon, matchesLost,
+     * userId, username, fullName, totalScore, matchesPlayed, matchesWon,
+     * matchesLost,
      * matchesDrawn, and calculated winRate.
      * 
      * @param jwtUser authenticated user from JWT token
@@ -42,12 +46,13 @@ public class UserController {
         ProfileResponse response = userService.getProfile(jwtUser.getUserId());
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * Get paginated leaderboard ordered by totalScore DESC, id ASC.
      * Requirements: 10.6, 10.7, 10.8, 10.9
      * 
-     * Requires JWT authentication. Returns ranked leaderboard entries with sequential
+     * Requires JWT authentication. Returns ranked leaderboard entries with
+     * sequential
      * rank positions (no duplicate ranks). Supports pagination with default page=0,
      * size=20, and maximum size=100.
      * 
@@ -71,15 +76,30 @@ public class UserController {
     }
 
     /**
-     * Endpoint to clean up sample/mock test users.
+     * Get match history for a specific user ID.
      */
-    @PostMapping("/cleanup-test-data")
-    public ResponseEntity<java.util.Map<String, Object>> cleanupTestData() {
-        int deleted = userService.cleanupTestUsers();
-        return ResponseEntity.ok(java.util.Map.of(
-                "success", true,
-                "message", "Cleaned up " + deleted + " test users successfully",
-                "deletedCount", deleted
-        ));
+    @GetMapping("/{id}/matches")
+    public ResponseEntity<com.territorypaint.backend.dto.PageResponse<com.territorypaint.backend.dto.MatchHistoryItemDTO>> getUserMatches(
+            @PathVariable("id") Long id,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        if (matchService != null) {
+            return ResponseEntity.ok(matchService.getMatchHistory(id, page, size));
+        }
+        return ResponseEntity.ok(new com.territorypaint.backend.dto.PageResponse<>(java.util.Collections.emptyList(), page, size, 0, 1));
+    }
+
+    /**
+     * Get match history for current authenticated user.
+     */
+    @GetMapping("/matches")
+    public ResponseEntity<com.territorypaint.backend.dto.PageResponse<com.territorypaint.backend.dto.MatchHistoryItemDTO>> getCurrentUserMatches(
+            @AuthenticationPrincipal JwtUser jwtUser,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        if (matchService != null && jwtUser != null && jwtUser.getUserId() != null) {
+            return ResponseEntity.ok(matchService.getMatchHistory(jwtUser.getUserId(), page, size));
+        }
+        return ResponseEntity.ok(new com.territorypaint.backend.dto.PageResponse<>(java.util.Collections.emptyList(), page, size, 0, 1));
     }
 }

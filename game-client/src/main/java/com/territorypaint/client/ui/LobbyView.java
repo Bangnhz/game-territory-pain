@@ -38,9 +38,12 @@ import java.util.function.Consumer;
  * 
  * Architecture:
  * 1. Top Navbar: Game Logo + Glow effect + Arcade navigation buttons.
- * 2. Left Column: Glassmorphism Player Profile Card (Avatar, Score, Win Rate & Stats).
- * 3. Right Column: Cyber Arena Online Players List with dynamically generated Player Cards.
- * 4. Modal Overlay: Animated cyber modal dialog for incoming/outgoing challenges.
+ * 2. Left Column: Glassmorphism Player Profile Card (Avatar, Score, Win Rate &
+ * Stats).
+ * 3. Right Column: Cyber Arena Online Players List with dynamically generated
+ * Player Cards.
+ * 4. Modal Overlay: Animated cyber modal dialog for incoming/outgoing
+ * challenges.
  */
 public class LobbyView {
 
@@ -77,7 +80,7 @@ public class LobbyView {
             "#8B5CF6", // Cyber Purple
             "#10B981", // Emerald Neon
             "#EC4899", // Neon Pink
-            "#F59E0B"  // Amber
+            "#F59E0B" // Amber
     };
 
     public LobbyView(SceneManager sceneManager) {
@@ -113,7 +116,8 @@ public class LobbyView {
         // 1. Top Navbar
         mainLayout.setTop(buildHeader());
 
-        // Main Center Content: Split into Left Profile Column & Right Online Arena Column
+        // Main Center Content: Split into Left Profile Column & Right Online Arena
+        // Column
         HBox contentBox = new HBox(24);
         contentBox.setAlignment(Pos.TOP_LEFT);
         contentBox.setPadding(new Insets(20, 0, 0, 0));
@@ -231,8 +235,7 @@ public class LobbyView {
         LinearGradient avatarGradient = new LinearGradient(
                 0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
                 new Stop(0, Color.web("#00D2FF")),
-                new Stop(1, Color.web("#2563EB"))
-        );
+                new Stop(1, Color.web("#2563EB")));
         innerCircle.setFill(avatarGradient);
 
         profileAvatarText = new Label("P");
@@ -252,7 +255,8 @@ public class LobbyView {
 
         // Stats Overview Title
         Label statsSectionTitle = new Label("BATTLE PERFORMANCE");
-        statsSectionTitle.setStyle("-fx-text-fill: #94A3B8; -fx-font-size: 11px; -fx-font-weight: bold; -fx-letter-spacing: 0.5px;");
+        statsSectionTitle.setStyle(
+                "-fx-text-fill: #94A3B8; -fx-font-size: 11px; -fx-font-weight: bold; -fx-letter-spacing: 0.5px;");
 
         // 2x2 Stats Grid
         GridPane statsGrid = new GridPane();
@@ -303,7 +307,8 @@ public class LobbyView {
         HBox statusFooter = new HBox(8);
         statusFooter.setAlignment(Pos.CENTER);
         statusFooter.setPadding(new Insets(10, 0, 0, 0));
-        statusFooter.setStyle("-fx-border-color: rgba(56, 189, 248, 0.1) transparent transparent transparent; -fx-border-width: 1 0 0 0;");
+        statusFooter.setStyle(
+                "-fx-border-color: rgba(56, 189, 248, 0.1) transparent transparent transparent; -fx-border-width: 1 0 0 0;");
 
         Circle lobbyPulse = new Circle(4, Color.web("#38BDF8"));
         Label lobbyState = new Label("Connected to Server (Lobby Mode)");
@@ -317,8 +322,7 @@ public class LobbyView {
                 statsSectionTitle,
                 statsGrid,
                 progressBox,
-                statusFooter
-        );
+                statusFooter);
 
         updateProfileDisplay();
         return profileCard;
@@ -461,7 +465,8 @@ public class LobbyView {
     }
 
     private void renderPlayerCards() {
-        if (playerListContainer == null) return;
+        if (playerListContainer == null)
+            return;
 
         playerListContainer.getChildren().clear();
 
@@ -480,7 +485,8 @@ public class LobbyView {
             Label emptyTitle = new Label("Searching for opponents...");
             emptyTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #94A3B8;");
 
-            Label emptySubtitle = new Label("No other players are currently online in the lobby.\nOpen a 2nd game client to start a 1v1 battle!");
+            Label emptySubtitle = new Label(
+                    "No other players are currently online in the lobby.\nOpen a 2nd game client to start a 1v1 battle!");
             emptySubtitle.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748B; -fx-text-alignment: center;");
 
             emptyBox.getChildren().addAll(emptyIcon, emptyTitle, emptySubtitle);
@@ -539,10 +545,14 @@ public class LobbyView {
         int losses = getIntValue(profileData, "matchesLost", 0);
         double winRate = getDoubleValue(profileData, "winRate", 0.0);
 
-        if (statMatchesLabel != null) statMatchesLabel.setText(String.valueOf(matches));
-        if (statWinsLabel != null) statWinsLabel.setText(String.valueOf(wins));
-        if (statLossesLabel != null) statLossesLabel.setText(String.valueOf(losses));
-        if (statWinRateLabel != null) statWinRateLabel.setText(String.format("%.1f%%", winRate));
+        if (statMatchesLabel != null)
+            statMatchesLabel.setText(String.valueOf(matches));
+        if (statWinsLabel != null)
+            statWinsLabel.setText(String.valueOf(wins));
+        if (statLossesLabel != null)
+            statLossesLabel.setText(String.valueOf(losses));
+        if (statWinRateLabel != null)
+            statWinRateLabel.setText(String.format("%.1f%%", winRate));
 
         if (winRateBar != null) {
             winRateBar.setProgress(Math.min(1.0, Math.max(0.0, winRate / 100.0)));
@@ -559,7 +569,8 @@ public class LobbyView {
     }
 
     private void handleServerMessage(Message msg) {
-        if (msg == null || msg.getActionType() == null) return;
+        if (msg == null || msg.getActionType() == null)
+            return;
 
         switch (msg.getActionType()) {
             case ONLINE_LIST -> {
@@ -571,17 +582,14 @@ public class LobbyView {
                         String currentUsername = sceneManager.getClientState().getUsername();
 
                         for (PlayerDTO p : payload.getPlayers()) {
-                            if (p == null) continue;
+                            if (p == null)
+                                continue;
                             // Exclude currently logged-in account (self)
                             if (currentUserId != null && p.getUserId() == currentUserId.longValue()) {
                                 continue;
                             }
-                            if (currentUsername != null && !currentUsername.isBlank() && currentUsername.equalsIgnoreCase(p.getUsername())) {
-                                continue;
-                            }
-                            // Exclude mock/test accounts (testuser...)
-                            String uname = p.getUsername() != null ? p.getUsername().toLowerCase().trim() : "";
-                            if (uname.startsWith("testuser") || uname.startsWith("testusser") || uname.startsWith("test_") || uname.equals("test")) {
+                            if (currentUsername != null && !currentUsername.isBlank()
+                                    && currentUsername.equalsIgnoreCase(p.getUsername())) {
                                 continue;
                             }
                             playerList.add(p);
@@ -592,13 +600,15 @@ public class LobbyView {
                 }
             }
             case CHALLENGE_RECEIVED -> {
-                ChallengeReceivedPayload payload = objectMapper.convertValue(msg.getPayload(), ChallengeReceivedPayload.class);
+                ChallengeReceivedPayload payload = objectMapper.convertValue(msg.getPayload(),
+                        ChallengeReceivedPayload.class);
                 if (payload != null) {
                     Platform.runLater(() -> showIncomingChallengeModal(payload));
                 }
             }
             case CHALLENGE_RESULT -> {
-                ChallengeResultPayload payload = objectMapper.convertValue(msg.getPayload(), ChallengeResultPayload.class);
+                ChallengeResultPayload payload = objectMapper.convertValue(msg.getPayload(),
+                        ChallengeResultPayload.class);
                 if (payload != null) {
                     Platform.runLater(() -> handleChallengeResult(payload));
                 }
@@ -607,7 +617,8 @@ public class LobbyView {
                 MatchStartPayload payload = null;
                 try {
                     payload = objectMapper.convertValue(msg.getPayload(), MatchStartPayload.class);
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
                 final MatchStartPayload startPayload = payload;
                 Platform.runLater(() -> {
                     closeActiveModal();
@@ -711,7 +722,7 @@ public class LobbyView {
 
         // 15 seconds timer
         final int totalSec = 15;
-        final int[] remaining = {totalSec};
+        final int[] remaining = { totalSec };
         countdownScheduler = Executors.newSingleThreadScheduledExecutor();
         countdownTask = countdownScheduler.scheduleAtFixedRate(() -> {
             remaining[0]--;
@@ -816,14 +827,16 @@ public class LobbyView {
             st.stop();
             cancelCountdown();
             closeActiveModal();
-            sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_ACCEPT, new ChallengeAcceptPayload(payload.getChallengeId())));
+            sceneManager.getTcpClient().send(
+                    Message.event(ActionType.CHALLENGE_ACCEPT, new ChallengeAcceptPayload(payload.getChallengeId())));
         });
 
         declineBtn.setOnAction(e -> {
             st.stop();
             cancelCountdown();
             closeActiveModal();
-            sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_REJECT, new ChallengeRejectPayload(payload.getChallengeId())));
+            sceneManager.getTcpClient().send(
+                    Message.event(ActionType.CHALLENGE_REJECT, new ChallengeRejectPayload(payload.getChallengeId())));
         });
 
         HBox btnBox = new HBox(16, declineBtn, acceptBtn);
@@ -835,7 +848,7 @@ public class LobbyView {
 
         // 15 seconds timer
         final int totalSec = 15;
-        final int[] remaining = {totalSec};
+        final int[] remaining = { totalSec };
         countdownScheduler = Executors.newSingleThreadScheduledExecutor();
         countdownTask = countdownScheduler.scheduleAtFixedRate(() -> {
             remaining[0]--;
@@ -847,7 +860,8 @@ public class LobbyView {
                     st.stop();
                     cancelCountdown();
                     closeActiveModal();
-                    sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_REJECT, new ChallengeRejectPayload(payload.getChallengeId())));
+                    sceneManager.getTcpClient().send(Message.event(ActionType.CHALLENGE_REJECT,
+                            new ChallengeRejectPayload(payload.getChallengeId())));
                 }
             });
         }, 1, 1, TimeUnit.SECONDS);
@@ -862,7 +876,8 @@ public class LobbyView {
             showNoticeModal("Challenge Declined", "The opponent declined your challenge request.", "🚫 REJECTED");
         } else if ("EXPIRED".equalsIgnoreCase(status)) {
             closeActiveModal();
-            showNoticeModal("Challenge Expired", "The challenge timed out because the opponent did not respond in 15 seconds.", "⏰ TIMED OUT");
+            showNoticeModal("Challenge Expired",
+                    "The challenge timed out because the opponent did not respond in 15 seconds.", "⏰ TIMED OUT");
         } else if ("CANCELLED".equalsIgnoreCase(status)) {
             closeActiveModal();
             showNoticeModal("Challenge Cancelled", "The challenge was cancelled.", "⚠️ CANCELLED");
@@ -891,7 +906,8 @@ public class LobbyView {
         Label msgLabel = new Label(message);
         msgLabel.setWrapText(true);
         msgLabel.setMaxWidth(360);
-        msgLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #CBD5E1; -fx-font-weight: 600; -fx-text-alignment: center;");
+        msgLabel.setStyle(
+                "-fx-font-size: 13px; -fx-text-fill: #CBD5E1; -fx-font-weight: 600; -fx-text-alignment: center;");
 
         Button okBtn = new Button("UNDERSTOOD");
         okBtn.getStyleClass().add("btn-cancelled-return");
@@ -969,27 +985,33 @@ public class LobbyView {
     }
 
     private String getInitialChar(String name) {
-        if (name == null || name.isBlank()) return "?";
+        if (name == null || name.isBlank())
+            return "?";
         return name.trim().substring(0, 1).toUpperCase();
     }
 
     private String getPaletteColorForUsername(String name) {
-        if (name == null || name.isEmpty()) return AVATAR_PALETTE[0];
+        if (name == null || name.isEmpty())
+            return AVATAR_PALETTE[0];
         int hash = Math.abs(name.hashCode());
         return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
     }
 
     private int getIntValue(Map<String, Object> map, String key, int defVal) {
-        if (map == null || !map.containsKey(key)) return defVal;
+        if (map == null || !map.containsKey(key))
+            return defVal;
         Object val = map.get(key);
-        if (val instanceof Number num) return num.intValue();
+        if (val instanceof Number num)
+            return num.intValue();
         return defVal;
     }
 
     private double getDoubleValue(Map<String, Object> map, String key, double defVal) {
-        if (map == null || !map.containsKey(key)) return defVal;
+        if (map == null || !map.containsKey(key))
+            return defVal;
         Object val = map.get(key);
-        if (val instanceof Number num) return num.doubleValue();
+        if (val instanceof Number num)
+            return num.doubleValue();
         return defVal;
     }
 }

@@ -72,7 +72,8 @@ public class LeaderboardView {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
         Label placeholder = new Label("No players registered yet.\nRankings will appear as players join!");
-        placeholder.setStyle("-fx-text-fill: #94A3B8; -fx-font-size: 14px; -fx-alignment: center; -fx-text-alignment: center;");
+        placeholder.setStyle(
+                "-fx-text-fill: #94A3B8; -fx-font-size: 14px; -fx-alignment: center; -fx-text-alignment: center;");
         table.setPlaceholder(placeholder);
 
         TableColumn<Map<String, Object>, String> rankCol = new TableColumn<>("Rank");
@@ -81,9 +82,12 @@ public class LeaderboardView {
             Object rank = data.getValue().get("rank");
             if (rank instanceof Number num) {
                 int r = num.intValue();
-                if (r == 1) return new SimpleStringProperty("🥇 #1");
-                if (r == 2) return new SimpleStringProperty("🥈 #2");
-                if (r == 3) return new SimpleStringProperty("🥉 #3");
+                if (r == 1)
+                    return new SimpleStringProperty("🥇 #1");
+                if (r == 2)
+                    return new SimpleStringProperty("🥈 #2");
+                if (r == 3)
+                    return new SimpleStringProperty("🥉 #3");
                 return new SimpleStringProperty("#" + r);
             }
             return new SimpleStringProperty("#-");
@@ -247,7 +251,8 @@ public class LeaderboardView {
                         }
                     }
                     if (isMe) {
-                        setStyle("-fx-background-color: rgba(56, 189, 248, 0.22); -fx-font-weight: bold; -fx-border-color: #38BDF8; -fx-border-width: 1px 0 1px 0;");
+                        setStyle(
+                                "-fx-background-color: rgba(56, 189, 248, 0.22); -fx-font-weight: bold; -fx-border-color: #38BDF8; -fx-border-width: 1px 0 1px 0;");
                     } else {
                         setStyle("");
                     }
@@ -273,56 +278,38 @@ public class LeaderboardView {
     public void loadPage(int page) {
         this.currentPage = page;
         sceneManager.getRestClient().getLeaderboard(0, 100)
-            .thenAccept(res -> Platform.runLater(() -> {
-                List<Map<String, Object>> entries = null;
-                if (res != null && res.containsKey("entries")) {
-                    entries = (List<Map<String, Object>>) res.get("entries");
-                } else if (res != null && res.containsKey("content")) {
-                    entries = (List<Map<String, Object>>) res.get("content");
-                }
-
-                if (entries != null) {
-                    // Filter out sample / mock users (testuser, testusser, test_...)
-                    List<Map<String, Object>> cleanEntries = new java.util.ArrayList<>();
-                    int rankSeq = 1;
-                    for (Map<String, Object> entry : entries) {
-                        Object uname = entry.get("username");
-                        if (uname != null) {
-                            String name = uname.toString().toLowerCase().trim();
-                            if (name.startsWith("testuser") || name.startsWith("testusser") || name.startsWith("test_") || name.equals("test")) {
-                                continue;
-                            }
-                        }
-                        Map<String, Object> copy = new java.util.HashMap<>(entry);
-                        Object r = copy.get("rank");
-                        if (r instanceof Number num && num.intValue() <= 100) {
-                            copy.put("rank", rankSeq++);
-                        }
-                        cleanEntries.add(copy);
+                .thenAccept(res -> Platform.runLater(() -> {
+                    List<Map<String, Object>> entries = null;
+                    if (res != null && res.containsKey("entries")) {
+                        entries = (List<Map<String, Object>>) res.get("entries");
+                    } else if (res != null && res.containsKey("content")) {
+                        entries = (List<Map<String, Object>>) res.get("content");
                     }
 
-                    list.setAll(cleanEntries);
-                    int total = cleanEntries.size();
-                    boolean hasAppendedUser = cleanEntries.stream().anyMatch(e -> {
-                        Object r = e.get("rank");
-                        return r instanceof Number && ((Number) r).intValue() > 100;
+                    if (entries != null) {
+                        list.setAll(entries);
+                        int total = entries.size();
+                        boolean hasAppendedUser = entries.stream().anyMatch(e -> {
+                            Object r = e.get("rank");
+                            return r instanceof Number && ((Number) r).intValue() > 100;
+                        });
+
+                        if (hasAppendedUser) {
+                            pageLabel.setText(String.format("Top 100 Server Ranking + Your Rank (#%s) (Total: %d)",
+                                    entries.get(entries.size() - 1).get("rank"), total));
+                        } else {
+                            pageLabel.setText(String.format("Showing %d players (Top 100 Server Ranking)", total));
+                        }
+                    } else if (res != null && res.containsKey("error")) {
+                        table.setPlaceholder(
+                                new Label("Failed to load leaderboard: " + res.getOrDefault("message", "Error")));
+                    }
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        table.setPlaceholder(new Label("Error connecting to server. Please try again."));
                     });
-
-                    if (hasAppendedUser) {
-                        pageLabel.setText(String.format("Top 100 Server Ranking + Your Rank (#%s) (Total: %d)",
-                                cleanEntries.get(cleanEntries.size() - 1).get("rank"), total));
-                    } else {
-                        pageLabel.setText(String.format("Showing %d players (Top 100 Server Ranking)", total));
-                    }
-                } else if (res != null && res.containsKey("error")) {
-                    table.setPlaceholder(new Label("Failed to load leaderboard: " + res.getOrDefault("message", "Error")));
-                }
-            }))
-            .exceptionally(ex -> {
-                Platform.runLater(() -> {
-                    table.setPlaceholder(new Label("Error connecting to server. Please try again."));
+                    return null;
                 });
-                return null;
-            });
     }
 }

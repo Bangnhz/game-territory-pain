@@ -64,4 +64,21 @@ public class PageResponse<T> {
     public void setTotalPages(int totalPages) {
         this.totalPages = totalPages;
     }
+
+    // Aliases for compatibility with different frontend / client implementations
+    public List<T> getContent() {
+        return items;
+    }
+
+    public void setContent(List<T> content) {
+        this.items = content;
+    }
+
+    public long getTotalItems() {
+        return totalElements;
+    }
+
+    public void setTotalItems(long totalItems) {
+        this.totalElements = totalItems;
+    }
 }

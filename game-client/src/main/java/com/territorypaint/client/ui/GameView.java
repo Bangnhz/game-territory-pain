@@ -108,7 +108,8 @@ public class GameView {
             if (cssUrl != null) {
                 root.getStylesheets().add(cssUrl.toExternalForm());
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     public void resetView() {
@@ -141,7 +142,8 @@ public class GameView {
         prepBadge.setManaged(true);
 
         prepTimerLabel.setText("10s");
-        prepTimerLabel.setStyle("-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.6), 16, 0, 0, 0);");
+        prepTimerLabel.setStyle(
+                "-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.6), 16, 0, 0, 0);");
         prepTimerLabel.setVisible(true);
         prepTimerLabel.setManaged(true);
 
@@ -228,7 +230,8 @@ public class GameView {
         prepBadge.getStyleClass().add("prep-badge");
 
         prepTimerLabel = new Label("10s");
-        prepTimerLabel.setStyle("-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.6), 16, 0, 0, 0);");
+        prepTimerLabel.setStyle(
+                "-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.6), 16, 0, 0, 0);");
 
         prepSubtitleLabel = new Label("Both players must click READY to start");
         prepSubtitleLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #94A3B8; -fx-font-weight: 600;");
@@ -287,20 +290,27 @@ public class GameView {
             if (matchId != null && !matchId.isBlank()) {
                 mId = UUID.fromString(matchId);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         sceneManager.getTcpClient().send(Message.event(ActionType.READY, new ReadyPayload(mId)));
     }
 
     private void handleKeyPressed(KeyEvent event) {
-        if (!matchPlaying || latestSnapshot == null || matchId == null) return;
+        if (!matchPlaying || latestSnapshot == null || matchId == null)
+            return;
 
         Direction dir = null;
-        if (event.getCode() == KeyCode.W || event.getCode() == KeyCode.UP) dir = Direction.UP;
-        else if (event.getCode() == KeyCode.S || event.getCode() == KeyCode.DOWN) dir = Direction.DOWN;
-        else if (event.getCode() == KeyCode.A || event.getCode() == KeyCode.LEFT) dir = Direction.LEFT;
-        else if (event.getCode() == KeyCode.D || event.getCode() == KeyCode.RIGHT) dir = Direction.RIGHT;
+        if (event.getCode() == KeyCode.W || event.getCode() == KeyCode.UP)
+            dir = Direction.UP;
+        else if (event.getCode() == KeyCode.S || event.getCode() == KeyCode.DOWN)
+            dir = Direction.DOWN;
+        else if (event.getCode() == KeyCode.A || event.getCode() == KeyCode.LEFT)
+            dir = Direction.LEFT;
+        else if (event.getCode() == KeyCode.D || event.getCode() == KeyCode.RIGHT)
+            dir = Direction.RIGHT;
 
-        if (dir == null) return;
+        if (dir == null)
+            return;
         event.consume();
 
         long now = System.currentTimeMillis();
@@ -342,7 +352,8 @@ public class GameView {
     }
 
     private void executeMove(Direction dir) {
-        if (dir == null || latestSnapshot == null || matchId == null || !matchPlaying) return;
+        if (dir == null || latestSnapshot == null || matchId == null || !matchPlaying)
+            return;
 
         lastMoveTimeMs = System.currentTimeMillis();
         long seq = sceneManager.getClientState().nextMoveSeq();
@@ -353,7 +364,8 @@ public class GameView {
     }
 
     private void handleServerMessage(Message msg) {
-        if (msg == null || msg.getActionType() == null) return;
+        if (msg == null || msg.getActionType() == null)
+            return;
 
         switch (msg.getActionType()) {
             case MATCH_START -> {
@@ -366,7 +378,8 @@ public class GameView {
                 ReadyStatusPayload statusPayload = null;
                 try {
                     statusPayload = objectMapper.convertValue(msg.getPayload(), ReadyStatusPayload.class);
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
 
                 boolean allReady = false;
                 int readyCount = 1;
@@ -383,13 +396,19 @@ public class GameView {
                     if (countObj instanceof Number num) {
                         readyCount = num.intValue();
                     } else if (countObj != null) {
-                        try { readyCount = Integer.parseInt(countObj.toString()); } catch (Exception ignored) {}
+                        try {
+                            readyCount = Integer.parseInt(countObj.toString());
+                        } catch (Exception ignored) {
+                        }
                     }
                     Object uidObj = map.get("userId");
                     if (uidObj instanceof Number num) {
                         readyUserId = num.longValue();
                     } else if (uidObj != null) {
-                        try { readyUserId = Long.parseLong(uidObj.toString()); } catch (Exception ignored) {}
+                        try {
+                            readyUserId = Long.parseLong(uidObj.toString());
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
 
@@ -402,7 +421,9 @@ public class GameView {
                         start3SecondCountdown();
                     } else {
                         boolean isMe = false;
-                        Long myUserId = sceneManager.getClientState() != null ? sceneManager.getClientState().getUserId() : null;
+                        Long myUserId = sceneManager.getClientState() != null
+                                ? sceneManager.getClientState().getUserId()
+                                : null;
                         if (finalReadyUserId != null && myUserId != null) {
                             isMe = (finalReadyUserId.longValue() == myUserId.longValue());
                         } else {
@@ -411,10 +432,12 @@ public class GameView {
 
                         if (isMe) {
                             prepSubtitleLabel.setText("⏳ Waiting for opponent to get READY...");
-                            prepSubtitleLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #38BDF8; -fx-font-weight: bold;");
+                            prepSubtitleLabel
+                                    .setStyle("-fx-font-size: 13px; -fx-text-fill: #38BDF8; -fx-font-weight: bold;");
                         } else {
                             prepSubtitleLabel.setText("🔥 Opponent is READY! Click below to start!");
-                            prepSubtitleLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #34D399; -fx-font-weight: 800;");
+                            prepSubtitleLabel
+                                    .setStyle("-fx-font-size: 13px; -fx-text-fill: #34D399; -fx-font-weight: 800;");
                             animateCountdownPulse(readyButton);
                             SoundManager.getInstance().playMoveSfx();
                         }
@@ -474,7 +497,8 @@ public class GameView {
                     String reason = null;
                     if (msg.getPayload() instanceof Map<?, ?> map) {
                         Object r = map.get("reason");
-                        if (r != null) reason = r.toString();
+                        if (r != null)
+                            reason = r.toString();
                     }
                     showMatchCancelledModal(reason);
                 });
@@ -487,7 +511,8 @@ public class GameView {
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
         int[][] grid = snapshot.getGrid();
-        if (grid == null) return;
+        if (grid == null)
+            return;
 
         // Draw 20x20 grid cells
         for (int y = 0; y < GRID_SIZE; y++) {
@@ -559,7 +584,8 @@ public class GameView {
         dialogCard.setMaxWidth(520);
         dialogCard.setPadding(new Insets(24, 28, 24, 28));
 
-        String cardThemeClass = isWinner ? "result-card-victory" : (isLoser ? "result-card-defeat" : "result-card-draw");
+        String cardThemeClass = isWinner ? "result-card-victory"
+                : (isLoser ? "result-card-defeat" : "result-card-draw");
         dialogCard.getStyleClass().addAll("modal-card", cardThemeClass);
 
         // 1. Header category tag & End reason
@@ -594,17 +620,20 @@ public class GameView {
 
         if (isWinner) {
             titleLabel.setText("🏆 VICTORY!");
-            titleLabel.setStyle(titleLabel.getStyle() + " -fx-text-fill: #34D399; -fx-effect: dropshadow(three-pass-box, rgba(52, 211, 153, 0.6), 16, 0, 0, 0);");
+            titleLabel.setStyle(titleLabel.getStyle()
+                    + " -fx-text-fill: #34D399; -fx-effect: dropshadow(three-pass-box, rgba(52, 211, 153, 0.6), 16, 0, 0, 0);");
             subtitleLabel.setText("Territory Dominated! Exceptional battlefield control.");
             subtitleLabel.setStyle(subtitleLabel.getStyle() + " -fx-text-fill: #A7F3D0;");
         } else if (isLoser) {
             titleLabel.setText("💀 DEFEAT");
-            titleLabel.setStyle(titleLabel.getStyle() + " -fx-text-fill: #F87171; -fx-effect: dropshadow(three-pass-box, rgba(248, 113, 113, 0.6), 16, 0, 0, 0);");
+            titleLabel.setStyle(titleLabel.getStyle()
+                    + " -fx-text-fill: #F87171; -fx-effect: dropshadow(three-pass-box, rgba(248, 113, 113, 0.6), 16, 0, 0, 0);");
             subtitleLabel.setText("Outpainted this round! Regroup and challenge again.");
             subtitleLabel.setStyle(subtitleLabel.getStyle() + " -fx-text-fill: #FECACA;");
         } else {
             titleLabel.setText("🤝 DRAW GAME");
-            titleLabel.setStyle(titleLabel.getStyle() + " -fx-text-fill: #38BDF8; -fx-effect: dropshadow(three-pass-box, rgba(56, 189, 248, 0.6), 16, 0, 0, 0);");
+            titleLabel.setStyle(titleLabel.getStyle()
+                    + " -fx-text-fill: #38BDF8; -fx-effect: dropshadow(three-pass-box, rgba(56, 189, 248, 0.6), 16, 0, 0, 0);");
             subtitleLabel.setText("Deadlock! Both painters demonstrated equal prowess.");
             subtitleLabel.setStyle(subtitleLabel.getStyle() + " -fx-text-fill: #BAE6FD;");
         }
@@ -615,8 +644,10 @@ public class GameView {
         PlayerResultDTO p2Result = null;
         if (payload.getPlayerResults() != null) {
             for (PlayerResultDTO pr : payload.getPlayerResults()) {
-                if (pr.getSlot() == 1) p1Result = pr;
-                else if (pr.getSlot() == 2) p2Result = pr;
+                if (pr.getSlot() == 1)
+                    p1Result = pr;
+                else if (pr.getSlot() == 2)
+                    p2Result = pr;
             }
         }
 
@@ -634,11 +665,14 @@ public class GameView {
 
         boolean p1IsMe = (p1Result != null && currentUserId != null && currentUserId == p1Result.getUserId());
         boolean p2IsMe = (p2Result != null && currentUserId != null && currentUserId == p2Result.getUserId());
-        if (!p1IsMe && !p2IsMe && latestSnapshot != null && latestSnapshot.getPlayers() != null && currentUserId != null) {
+        if (!p1IsMe && !p2IsMe && latestSnapshot != null && latestSnapshot.getPlayers() != null
+                && currentUserId != null) {
             for (var p : latestSnapshot.getPlayers()) {
                 if (p.getUserId() == currentUserId) {
-                    if (p.getSlot() == 1) p1IsMe = true;
-                    else if (p.getSlot() == 2) p2IsMe = true;
+                    if (p.getSlot() == 1)
+                        p1IsMe = true;
+                    else if (p.getSlot() == 2)
+                        p2IsMe = true;
                 }
             }
         }
@@ -650,8 +684,10 @@ public class GameView {
         boolean p1Winner = winnerUserId != null && p1Result != null && winnerUserId == p1Result.getUserId();
         boolean p2Winner = winnerUserId != null && p2Result != null && winnerUserId == p2Result.getUserId();
 
-        VBox p1Box = createPlayerResultBox(1, p1Name, p1IsMe, p1Cells, p1Pct, p1Winner, p1Result != null ? p1Result.getRankDelta() : 0);
-        VBox p2Box = createPlayerResultBox(2, p2Name, p2IsMe, p2Cells, p2Pct, p2Winner, p2Result != null ? p2Result.getRankDelta() : 0);
+        VBox p1Box = createPlayerResultBox(1, p1Name, p1IsMe, p1Cells, p1Pct, p1Winner,
+                p1Result != null ? p1Result.getRankDelta() : 0);
+        VBox p2Box = createPlayerResultBox(2, p2Name, p2IsMe, p2Cells, p2Pct, p2Winner,
+                p2Result != null ? p2Result.getRankDelta() : 0);
 
         Label vsBadge = new Label("VS");
         vsBadge.getStyleClass().add("result-vs-badge");
@@ -819,7 +855,8 @@ public class GameView {
         ft.play();
     }
 
-    private VBox createPlayerResultBox(int slot, String name, boolean isMe, int cells, double pct, boolean isWinner, int rankDelta) {
+    private VBox createPlayerResultBox(int slot, String name, boolean isMe, int cells, double pct, boolean isWinner,
+            int rankDelta) {
         VBox box = new VBox(8);
         box.setAlignment(Pos.CENTER_LEFT);
         box.getStyleClass().add(slot == 1 ? "result-player-box-p1" : "result-player-box-p2");
@@ -875,7 +912,8 @@ public class GameView {
     }
 
     private void updateRematchStatus(RematchStatusPayload payload) {
-        if (payload == null || modalRematchStatusLabel == null) return;
+        if (payload == null || modalRematchStatusLabel == null)
+            return;
         List<?> accepted = payload.getAcceptedUserIds();
         int count = accepted != null ? accepted.size() : 0;
         Long myId = sceneManager.getClientState() != null ? sceneManager.getClientState().getUserId() : null;
@@ -939,7 +977,7 @@ public class GameView {
 
     private void startPrep10sCountdown(int seconds) {
         cancelPrepCountdown();
-        final int[] remaining = {seconds};
+        final int[] remaining = { seconds };
         prepCountdownScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "PrepCountdownThread");
             t.setDaemon(true);
@@ -951,7 +989,8 @@ public class GameView {
             Platform.runLater(() -> {
                 prepTimerLabel.setText(sec + "s");
                 if (sec <= 3) {
-                    prepTimerLabel.setStyle("-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #EF4444; -fx-effect: dropshadow(three-pass-box, rgba(239, 68, 68, 0.6), 16, 0, 0, 0);");
+                    prepTimerLabel.setStyle(
+                            "-fx-font-size: 38px; -fx-font-weight: 900; -fx-text-fill: #EF4444; -fx-effect: dropshadow(three-pass-box, rgba(239, 68, 68, 0.6), 16, 0, 0, 0);");
                 }
             });
             if (sec <= 0) {
@@ -974,13 +1013,14 @@ public class GameView {
 
             prepCountdownNum.setVisible(true);
             prepCountdownNum.setManaged(true);
-            prepCountdownNum.setStyle("-fx-font-size: 80px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.7), 24, 0, 0, 0);");
+            prepCountdownNum.setStyle(
+                    "-fx-font-size: 80px; -fx-font-weight: 900; -fx-text-fill: #FACC15; -fx-effect: dropshadow(three-pass-box, rgba(250, 204, 21, 0.7), 24, 0, 0, 0);");
             prepCountdownNum.setText("3");
             animateCountdownPulse(prepCountdownNum);
             SoundManager.getInstance().playMoveSfx();
         });
 
-        final int[] step = {2};
+        final int[] step = { 2 };
         prepCountdownScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "BattleCountdownThread");
             t.setDaemon(true);
@@ -1001,7 +1041,8 @@ public class GameView {
                 } else if (currentStep <= 0) {
                     cancelPrepCountdown();
                     prepCountdownNum.setText("PAINT!");
-                    prepCountdownNum.setStyle("-fx-font-size: 64px; -fx-font-weight: 900; -fx-text-fill: #10B981; -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.8), 24, 0, 0, 0);");
+                    prepCountdownNum.setStyle(
+                            "-fx-font-size: 64px; -fx-font-weight: 900; -fx-text-fill: #10B981; -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.8), 24, 0, 0, 0);");
                     animateCountdownPulse(prepCountdownNum);
                     SoundManager.getInstance().playClickSfx();
 
@@ -1022,7 +1063,8 @@ public class GameView {
     }
 
     private void animateCountdownPulse(Node node) {
-        if (node == null) return;
+        if (node == null)
+            return;
         node.setScaleX(1.4);
         node.setScaleY(1.4);
         ScaleTransition st = new ScaleTransition(Duration.millis(320), node);
@@ -1059,7 +1101,8 @@ public class GameView {
     }
 
     private void addScaleHoverAnimation(Node node, double scaleTo) {
-        if (node == null) return;
+        if (node == null)
+            return;
         node.setOnMouseEntered(e -> {
             ScaleTransition st = new ScaleTransition(Duration.millis(120), node);
             st.setToX(scaleTo);
@@ -1096,7 +1139,8 @@ public class GameView {
         if ("READY_TIMEOUT".equalsIgnoreCase(reason)) {
             subBadgeText = "⏱️ 10s READY TIMEOUT";
             descText = "The preparation window timed out because one or both players did not click READY in time.";
-        } else if ("PLAYER_LEFT".equalsIgnoreCase(reason) || "DISCONNECT".equalsIgnoreCase(reason) || "FORFEIT".equalsIgnoreCase(reason)) {
+        } else if ("PLAYER_LEFT".equalsIgnoreCase(reason) || "DISCONNECT".equalsIgnoreCase(reason)
+                || "FORFEIT".equalsIgnoreCase(reason)) {
             subBadgeText = "⚡ OPPONENT LEFT";
             descText = "The match was aborted because the opponent disconnected or left the room.";
         } else if ("DECLINED".equalsIgnoreCase(reason)) {
@@ -1119,12 +1163,14 @@ public class GameView {
         titleBox.setAlignment(Pos.CENTER);
 
         Label titleLabel = new Label("MATCH CANCELLED");
-        titleLabel.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #FBBF24; -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.6), 16, 0, 0, 0);");
+        titleLabel.setStyle(
+                "-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #FBBF24; -fx-effect: dropshadow(three-pass-box, rgba(245, 158, 11, 0.6), 16, 0, 0, 0);");
 
         Label descLabel = new Label(descText);
         descLabel.setWrapText(true);
         descLabel.setMaxWidth(420);
-        descLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #E2E8F0; -fx-font-weight: 600; -fx-text-alignment: center;");
+        descLabel.setStyle(
+                "-fx-font-size: 13px; -fx-text-fill: #E2E8F0; -fx-font-weight: 600; -fx-text-alignment: center;");
 
         titleBox.getChildren().addAll(titleLabel, descLabel);
 
