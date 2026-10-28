@@ -85,7 +85,7 @@ public class GameServer {
             try {
                 Socket socket = serverSocket.accept();
                 logger.info("Accepted new connection from {}", socket.getRemoteSocketAddress());
-                ClientHandler handler = new ClientHandler(socket, this, sessionManager, backendClient);
+                ClientHandler handler = new ClientHandler(socket, this, sessionManager, backendClient, roomRegistry);
                 connectionExecutor.execute(handler);
             } catch (IOException e) {
                 if (running) {
@@ -164,6 +164,18 @@ public class GameServer {
                 GameRoom room = roomRegistry.getRoom(session.getCurrentRoomId());
                 if (room != null) {
                     room.handleExitMatch(session);
+                }
+            }
+        } else if (type == ActionType.QUICK_CHAT) {
+            if (session.getCurrentRoomId() != null) {
+                GameRoom room = roomRegistry.getRoom(session.getCurrentRoomId());
+                if (room != null) {
+                    try {
+                        QuickChatPayload p = objectMapper.convertValue(message.getPayload(), QuickChatPayload.class);
+                        room.handleQuickChat(session, p.getPhraseIndex(), p.getMatchId());
+                    } catch (Exception e) {
+                        logger.warn("Error parsing QUICK_CHAT payload: {}", e.getMessage());
+                    }
                 }
             }
         }

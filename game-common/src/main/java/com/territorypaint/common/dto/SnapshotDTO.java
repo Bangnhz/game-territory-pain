@@ -1,5 +1,6 @@
 package com.territorypaint.common.dto;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,23 +15,36 @@ public class SnapshotDTO {
     private int[][] grid; // [y][x], 0=unowned, 1=player1, 2=player2
     private List<PlayerSnapshotDTO> players; // Ordered by slot
     private long remainingMs;
+    /** Power-up items currently active on the grid (empty list if none). */
+    private List<ActiveItemDTO> activeItems;
     
     public SnapshotDTO() {
     }
-    
-    public SnapshotDTO(UUID roomId, UUID matchId, long stateVersion, int[][] grid, 
+
+    public SnapshotDTO(UUID roomId, UUID matchId, long stateVersion, int[][] grid,
                       List<PlayerSnapshotDTO> players, long remainingMs) {
+        this(roomId, matchId, stateVersion, grid, players, remainingMs, Collections.emptyList());
+    }
+
+    public SnapshotDTO(UUID roomId, UUID matchId, long stateVersion, int[][] grid,
+                      List<PlayerSnapshotDTO> players, long remainingMs, List<ActiveItemDTO> activeItems) {
         this.roomId = roomId;
         this.matchId = matchId;
         this.stateVersion = stateVersion;
         this.grid = grid;
         this.players = players;
         this.remainingMs = remainingMs;
+        this.activeItems = activeItems != null ? activeItems : Collections.emptyList();
     }
 
-    public SnapshotDTO(String roomId, String matchId, long stateVersion, int[][] grid, 
+    public SnapshotDTO(String roomId, String matchId, long stateVersion, int[][] grid,
                       List<PlayerSnapshotDTO> players, long remainingMs) {
         this(UUID.fromString(roomId), UUID.fromString(matchId), stateVersion, grid, players, remainingMs);
+    }
+
+    public SnapshotDTO(String roomId, String matchId, long stateVersion, int[][] grid,
+                      List<PlayerSnapshotDTO> players, long remainingMs, List<ActiveItemDTO> activeItems) {
+        this(UUID.fromString(roomId), UUID.fromString(matchId), stateVersion, grid, players, remainingMs, activeItems);
     }
     
     public UUID getRoomId() {
@@ -76,8 +90,16 @@ public class SnapshotDTO {
     public long getRemainingMs() {
         return remainingMs;
     }
-    
+
     public void setRemainingMs(long remainingMs) {
         this.remainingMs = remainingMs;
+    }
+
+    public List<ActiveItemDTO> getActiveItems() {
+        return activeItems != null ? activeItems : Collections.emptyList();
+    }
+
+    public void setActiveItems(List<ActiveItemDTO> activeItems) {
+        this.activeItems = activeItems;
     }
 }

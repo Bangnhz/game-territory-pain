@@ -47,5 +47,17 @@ public enum ActionType {
     PING,
     PONG,
     LOGOUT,
-    ERROR
+    ERROR,
+
+    // Reconnect grace period
+    OPPONENT_DISCONNECTED,   // Server → waiting player: opponent dropped, countdown started
+    RECONNECT_SUCCESS,       // Server → reconnecting player: rejoined successfully
+
+    // Quick in-game chat
+    QUICK_CHAT,              // Client → Server (send), Server → both players (broadcast)
+
+    // Power-up item system
+    ITEM_SPAWN,              // Server → both: a new item appeared on the grid
+    ITEM_PICKUP,             // Server → both: a player collected an item
+    ITEM_DESPAWN             // Server → both: an item expired without being collected
 }

@@ -18,7 +18,7 @@ public class Session {
     private final String username;
     private Long rankingScore;
     private final Instant tokenExpiry;
-    private final ClientHandler clientHandler;
+    private volatile ClientHandler clientHandler; // volatile: can be swapped on reconnect
     private volatile PlayerStatus status;
     private volatile String currentRoomId;
     private volatile UUID pendingChallengeId;
@@ -59,6 +59,10 @@ public class Session {
 
     public ClientHandler getClientHandler() {
         return clientHandler;
+    }
+
+    public void setClientHandler(ClientHandler clientHandler) {
+        this.clientHandler = clientHandler;
     }
 
     public PlayerStatus getStatus() {

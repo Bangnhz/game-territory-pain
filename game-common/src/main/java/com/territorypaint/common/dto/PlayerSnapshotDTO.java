@@ -11,11 +11,13 @@ public class PlayerSnapshotDTO {
     private String color; // Hex color
     private PositionDTO position;
     private int cellsOwned;
+    /** Active power-up buffs (may be null for backward compatibility). */
+    private PlayerBuffDTO buff;
     
     public PlayerSnapshotDTO() {
     }
-    
-    public PlayerSnapshotDTO(long userId, String username, int slot, String color, 
+
+    public PlayerSnapshotDTO(long userId, String username, int slot, String color,
                             PositionDTO position, int cellsOwned) {
         this.userId = userId;
         this.username = username;
@@ -23,6 +25,12 @@ public class PlayerSnapshotDTO {
         this.color = color;
         this.position = position;
         this.cellsOwned = cellsOwned;
+    }
+
+    public PlayerSnapshotDTO(long userId, String username, int slot, String color,
+                            PositionDTO position, int cellsOwned, PlayerBuffDTO buff) {
+        this(userId, username, slot, color, position, cellsOwned);
+        this.buff = buff;
     }
     
     public long getUserId() {
@@ -68,8 +76,16 @@ public class PlayerSnapshotDTO {
     public int getCellsOwned() {
         return cellsOwned;
     }
-    
+
     public void setCellsOwned(int cellsOwned) {
         this.cellsOwned = cellsOwned;
+    }
+
+    public PlayerBuffDTO getBuff() {
+        return buff;
+    }
+
+    public void setBuff(PlayerBuffDTO buff) {
+        this.buff = buff;
     }
 }

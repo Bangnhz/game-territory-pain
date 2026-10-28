@@ -177,6 +177,9 @@ public class LobbyView {
         Button historyBtn = createNavButton("📜 Match History", false);
         historyBtn.setOnAction(e -> sceneManager.showHistoryScene());
 
+        Button helpBtn = createNavButton("❓ Guide", false);
+        helpBtn.setOnAction(e -> HelpView.show(root));
+
         Button refreshBtn = createNavButton("🔄 Refresh", false);
         refreshBtn.setOnAction(e -> refreshData());
 
@@ -185,7 +188,7 @@ public class LobbyView {
 
         Button soundToggleBtn = SoundManager.getInstance().createSoundToggleButton();
 
-        header.getChildren().addAll(logoBox, spacer, soundToggleBtn, leaderboardBtn, historyBtn, refreshBtn, logoutBtn);
+        header.getChildren().addAll(logoBox, spacer, soundToggleBtn, leaderboardBtn, historyBtn, helpBtn, refreshBtn, logoutBtn);
         return header;
     }
 

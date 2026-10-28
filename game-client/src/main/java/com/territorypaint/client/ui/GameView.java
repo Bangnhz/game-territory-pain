@@ -3,7 +3,9 @@ package com.territorypaint.client.ui;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.territorypaint.client.state.ClientState;
+import com.territorypaint.common.dto.ActiveItemDTO;
 import com.territorypaint.common.dto.Message;
+import com.territorypaint.common.dto.PlayerBuffDTO;
 import com.territorypaint.common.dto.PlayerResultDTO;
 import com.territorypaint.common.dto.PositionDTO;
 import com.territorypaint.common.dto.SnapshotDTO;
@@ -12,6 +14,7 @@ import com.territorypaint.common.protocol.ActionType;
 import com.territorypaint.common.protocol.Direction;
 import com.territorypaint.common.protocol.MatchEndReason;
 import com.territorypaint.common.protocol.MatchOutcome;
+import com.territorypaint.common.protocol.PowerUpType;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
@@ -69,6 +72,10 @@ public class GameView {
     private SnapshotDTO latestSnapshot;
     private String matchId;
 
+    // Reconnect grace-period UI
+    private Label reconnectBannerLabel;
+    private ScheduledFuture<?> reconnectCountdownTask;
+
     // Rematch countdown & modal elements
     private ScheduledExecutorService resultCountdownScheduler;
     private ScheduledFuture<?> resultCountdownTask;
@@ -85,6 +92,35 @@ public class GameView {
     private ScheduledExecutorService prepCountdownScheduler;
     private ScheduledFuture<?> prepCountdownTask;
     private volatile boolean matchPlaying = false;
+
+    // ── Quick Chat ────────────────────────────────────────────────────────────
+    /** Predefined phrases (order must match server QUICK_CHAT_PHRASES[]). */
+    private static final String[] QUICK_CHAT_PHRASES = {
+        "Cay thế nhờ!",
+        "Nhường tí đi chứ!",
+        "Làm ván nữa không?",
+        "Trận này căng phết!",
+        "Tô đè rồi nhé!"
+    };
+    private static final String[] QUICK_CHAT_EMOJIS = { "😤", "🙏", "🎮", "😰", "💪" };
+    /** Chat button panel – toggled visible only while matchPlaying. */
+    private HBox quickChatBar;
+    /** Currently shown speech-bubble label (if any). */
+    private Label chatBubbleLabel;
+    private ScheduledFuture<?> chatBubbleDismissTask;
+    private ScheduledExecutorService chatBubbleScheduler;
+    /** Cooldown tracking per phrase button to mirror server-side 2 s rate-limit. */
+    private final long[] quickChatLastSentMs = new long[QUICK_CHAT_PHRASES.length];
+    private static final long CHAT_COOLDOWN_MS = 2000;
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── Power-Up Client State ─────────────────────────────────────────────────
+    /** Buff timers of MY player (for visual effects). Updated from snapshot. */
+    private PlayerBuffDTO myBuff;
+    /** Buff timers of OPPONENT (for visual effects). */
+    private PlayerBuffDTO opponentBuff;
+    // ─────────────────────────────────────────────────────────────────────────
+
 
     public GameView(SceneManager sceneManager) {
         this.sceneManager = sceneManager;
@@ -123,6 +159,12 @@ public class GameView {
         closeResultModal();
         cancelPrepCountdown();
         matchPlaying = false;
+
+        // Hide quick chat bar until match is actively playing
+        if (quickChatBar != null) {
+            quickChatBar.setVisible(false);
+            quickChatBar.setManaged(false);
+        }
 
         if (payload != null && payload.getSnapshot() != null) {
             this.latestSnapshot = payload.getSnapshot();
@@ -254,12 +296,43 @@ public class GameView {
         boardStack.setAlignment(Pos.CENTER);
         boardStack.getChildren().addAll(canvas, prepOverlay);
 
+        // ── Quick Chat Bar ────────────────────────────────────────────────────
+        quickChatBar = new HBox(8);
+        quickChatBar.setAlignment(Pos.CENTER);
+        quickChatBar.setPadding(new Insets(8, 12, 8, 12));
+        quickChatBar.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 8;");
+        quickChatBar.setVisible(false);
+        quickChatBar.setManaged(false);
+
+        Label chatLabel = new Label("⚡ Chat:");
+        chatLabel.setStyle("-fx-text-fill: #94A3B8; -fx-font-size: 11px; -fx-font-weight: 700;");
+        quickChatBar.getChildren().add(chatLabel);
+
+        for (int i = 0; i < QUICK_CHAT_PHRASES.length; i++) {
+            final int idx = i;
+            Button btn = new Button(QUICK_CHAT_EMOJIS[i] + " " + QUICK_CHAT_PHRASES[i]);
+            btn.setId("quick-chat-btn-" + i);
+            btn.setStyle(
+                "-fx-background-color: #334155; -fx-text-fill: #CBD5E1; -fx-font-size: 11px; " +
+                "-fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 5 10; -fx-cursor: hand;");
+            btn.setFocusTraversable(false);
+            btn.setOnMouseEntered(e -> btn.setStyle(
+                "-fx-background-color: #475569; -fx-text-fill: #F8FAFC; -fx-font-size: 11px; " +
+                "-fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 5 10; -fx-cursor: hand;"));
+            btn.setOnMouseExited(e -> btn.setStyle(
+                "-fx-background-color: #334155; -fx-text-fill: #CBD5E1; -fx-font-size: 11px; " +
+                "-fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 5 10; -fx-cursor: hand;"));
+            btn.setOnAction(e -> sendQuickChat(idx, btn));
+            quickChatBar.getChildren().add(btn);
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         VBox centerBox = new VBox(12);
         centerBox.setAlignment(Pos.CENTER);
         statusLabel = new Label("Match preparation phase. Click Ready when you are prepared.");
         statusLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #94A3B8;");
 
-        centerBox.getChildren().addAll(statusLabel, boardStack);
+        centerBox.getChildren().addAll(statusLabel, boardStack, quickChatBar);
         gameLayout.setCenter(centerBox);
 
         // Modal Overlay for Match Finished dialog
@@ -432,6 +505,162 @@ public class GameView {
         SoundManager.getInstance().playMoveSfx();
     }
 
+    // ── Quick Chat ────────────────────────────────────────────────────────────
+
+    /** Send a quick-chat message to the server (client-side cooldown guard). */
+    private void sendQuickChat(int phraseIndex, Button btn) {
+        if (!matchPlaying || matchId == null) return;
+
+        long now = System.currentTimeMillis();
+        if (now - quickChatLastSentMs[phraseIndex] < CHAT_COOLDOWN_MS) return;
+        quickChatLastSentMs[phraseIndex] = now;
+
+        SoundManager.getInstance().playClickSfx();
+
+        // Temporarily style the button to show it was used
+        String originalStyle = "-fx-background-color: #334155; -fx-text-fill: #CBD5E1; -fx-font-size: 11px; " +
+                "-fx-font-weight: 700; -fx-background-radius: 8; -fx-padding: 5 10; -fx-cursor: hand;";
+        btn.setStyle("-fx-background-color: #38BDF8; -fx-text-fill: #0F172A; -fx-font-size: 11px; " +
+                "-fx-font-weight: 800; -fx-background-radius: 8; -fx-padding: 5 10; -fx-cursor: hand;");
+        btn.setDisable(true);
+
+        // Re-enable after cooldown
+        if (chatBubbleScheduler == null || chatBubbleScheduler.isShutdown()) {
+            chatBubbleScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "ChatBubbleThread");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        chatBubbleScheduler.schedule(() -> Platform.runLater(() -> {
+            btn.setDisable(false);
+            btn.setStyle(originalStyle);
+        }), CHAT_COOLDOWN_MS, TimeUnit.MILLISECONDS);
+
+        // Send to server
+        QuickChatPayload payload = new QuickChatPayload(phraseIndex, matchId);
+        sceneManager.getTcpClient().send(Message.event(ActionType.QUICK_CHAT, payload));
+    }
+
+    /**
+     * Display a floating speech bubble above the board for a received quick-chat.
+     * @param phrase   the text to show
+     * @param senderSlot  1 = player1 (blue), 2 = player2 (orange)
+     * @param senderUsername display name
+     */
+    private void showQuickChatBubble(String phrase, int senderSlot, String senderUsername) {
+        // Remove previous bubble if still showing
+        if (chatBubbleLabel != null) {
+            root.getChildren().remove(chatBubbleLabel);
+            chatBubbleLabel = null;
+        }
+        if (chatBubbleDismissTask != null && !chatBubbleDismissTask.isDone()) {
+            chatBubbleDismissTask.cancel(false);
+            chatBubbleDismissTask = null;
+        }
+
+        String color = senderSlot == 1 ? "#38BDF8" : "#FB923C";   // blue or orange
+        String bg    = senderSlot == 1 ? "rgba(38,114,214,0.92)" : "rgba(242,140,40,0.92)";
+
+        chatBubbleLabel = new Label(senderUsername + ": " + phrase);
+        chatBubbleLabel.setStyle(
+            "-fx-background-color: " + bg + "; " +
+            "-fx-text-fill: #FFFFFF; -fx-font-weight: 800; -fx-font-size: 13px; " +
+            "-fx-padding: 10 18 10 18; -fx-background-radius: 16; " +
+            "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.45), 10, 0, 0, 3);");
+        chatBubbleLabel.setMouseTransparent(true);
+
+        // Position: near top-centre for player1, slightly right for player2
+        Pos alignment = senderSlot == 1 ? Pos.TOP_LEFT : Pos.TOP_RIGHT;
+        StackPane.setAlignment(chatBubbleLabel, alignment);
+        StackPane.setMargin(chatBubbleLabel, new Insets(60, 12, 0, 12));
+        root.getChildren().add(chatBubbleLabel);
+
+        // Fade-in animation
+        chatBubbleLabel.setOpacity(0);
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(200), chatBubbleLabel);
+        fadeIn.setToValue(1.0);
+        fadeIn.play();
+
+        // Auto-dismiss after 3 seconds with fade-out
+        final Label bubble = chatBubbleLabel;
+        if (chatBubbleScheduler == null || chatBubbleScheduler.isShutdown()) {
+            chatBubbleScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "ChatBubbleThread");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        chatBubbleDismissTask = chatBubbleScheduler.schedule(() -> Platform.runLater(() -> {
+            FadeTransition fadeOut = new FadeTransition(Duration.millis(400), bubble);
+            fadeOut.setToValue(0);
+            fadeOut.setOnFinished(ev -> root.getChildren().remove(bubble));
+            fadeOut.play();
+            if (chatBubbleLabel == bubble) chatBubbleLabel = null;
+        }), 3000, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Show a power-up pickup notification toast in the centre of the screen.
+     */
+    private void showPickupToast(ItemPickupPayload payload) {
+        if (payload == null) return;
+        String emoji = switch (payload.getType()) {
+            case SPEED_BOOST -> "\uD83D\uDE80";
+            case FREEZE      -> "\uD83E\uDDCA";
+            case SHIELD      -> "\uD83D\uDEE1\uFE0F";
+        };
+        String name = switch (payload.getType()) {
+            case SPEED_BOOST -> "Speed Boost!";
+            case FREEZE      -> "FREEZE!";
+            case SHIELD      -> "Shield!";
+        };
+        String bg = switch (payload.getType()) {
+            case SPEED_BOOST -> "rgba(250,204,21,0.92)";
+            case FREEZE      -> "rgba(56,189,248,0.92)";
+            case SHIELD      -> "rgba(52,211,153,0.92)";
+        };
+        Long myUserId = sceneManager.getClientState() != null
+                ? sceneManager.getClientState().getUserId() : null;
+        boolean isSelf = (myUserId != null && payload.getCollectorUserId() == myUserId);
+        String text;
+        if (payload.getType() == PowerUpType.FREEZE && payload.getTargetSlot() > 0) {
+            text = emoji + " " + payload.getCollectorUsername()
+                   + (isSelf ? " froze opponent!" : " froze you!") + " " + emoji;
+        } else {
+            text = emoji + " " + payload.getCollectorUsername() + " got " + name + " " + emoji;
+        }
+        Label toast = new Label(text);
+        toast.setStyle(
+            "-fx-background-color: " + bg + "; "
+            + "-fx-text-fill: #0F172A; -fx-font-weight: 900; -fx-font-size: 14px; "
+            + "-fx-padding: 10 22 10 22; -fx-background-radius: 20; "
+            + "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 12, 0, 0, 4);");
+        toast.setMouseTransparent(true);
+        StackPane.setAlignment(toast, Pos.CENTER);
+        StackPane.setMargin(toast, new Insets(0, 0, 100, 0));
+        root.getChildren().add(toast);
+        toast.setOpacity(0);
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(180), toast);
+        fadeIn.setToValue(1.0);
+        fadeIn.play();
+        SoundManager.getInstance().playClickSfx();
+        if (chatBubbleScheduler == null || chatBubbleScheduler.isShutdown()) {
+            chatBubbleScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "ChatBubbleThread");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        chatBubbleScheduler.schedule(() -> Platform.runLater(() -> {
+            FadeTransition fadeOut = new FadeTransition(Duration.millis(400), toast);
+            fadeOut.setToValue(0);
+            fadeOut.setOnFinished(ev -> root.getChildren().remove(toast));
+            fadeOut.play();
+        }), 2500, TimeUnit.MILLISECONDS);
+    }
+
+
     private void handleServerMessage(Message msg) {
         if (msg == null || msg.getActionType() == null)
             return;
@@ -521,6 +750,8 @@ public class GameView {
                         start3SecondCountdown();
                     } else if (!prepOverlay.isVisible()) {
                         matchPlaying = true;
+                        quickChatBar.setVisible(true);
+                        quickChatBar.setManaged(true);
                         canvas.requestFocus();
                     }
                 });
@@ -549,7 +780,11 @@ public class GameView {
             case MATCH_RESULT -> {
                 MatchResultPayload payload = objectMapper.convertValue(msg.getPayload(), MatchResultPayload.class);
                 if (payload != null) {
-                    Platform.runLater(() -> showMatchResultDialog(payload));
+                    Platform.runLater(() -> {
+                        quickChatBar.setVisible(false);
+                        quickChatBar.setManaged(false);
+                        showMatchResultDialog(payload);
+                    });
                 }
             }
             case REMATCH_STATUS -> {
@@ -561,6 +796,40 @@ public class GameView {
                     });
                 }
             }
+            case OPPONENT_DISCONNECTED -> {
+                try {
+                    OpponentDisconnectedPayload payload =
+                            objectMapper.convertValue(msg.getPayload(), OpponentDisconnectedPayload.class);
+                    if (payload != null) {
+                        Platform.runLater(() -> showReconnectBanner(
+                                payload.getDisconnectedUsername(), payload.getGraceSeconds(),
+                                payload.getGraceDeadlineEpochMs()));
+                    }
+                } catch (Exception ignored) {}
+            }
+            case RECONNECT_SUCCESS -> {
+                try {
+                    ReconnectSuccessPayload payload =
+                            objectMapper.convertValue(msg.getPayload(), ReconnectSuccessPayload.class);
+                    if (payload != null) {
+                        Platform.runLater(() -> {
+                            // Restore match state
+                            this.matchId = payload.getMatchId();
+                            this.latestSnapshot = payload.getSnapshot();
+                            this.matchPlaying = true;
+                            renderSnapshot(latestSnapshot);
+                            long sec = Math.max(0, payload.getRemainingMatchMs() / 1000);
+                            timerLabel.setText(sec + "s");
+                            hidePrepOverlay();
+                            hideReconnectBanner();
+                            statusLabel.setText("✅ Reconnected! Resuming match...");
+                            quickChatBar.setVisible(true);
+                            quickChatBar.setManaged(true);
+                            canvas.requestFocus();
+                        });
+                    }
+                } catch (Exception ignored) {}
+            }
             case ROOM_CLOSED -> {
                 Platform.runLater(() -> {
                     String reason = null;
@@ -570,7 +839,37 @@ public class GameView {
                             reason = r.toString();
                     }
                     showMatchCancelledModal(reason);
+                    // Hide quick chat bar when room closes
+                    quickChatBar.setVisible(false);
+                    quickChatBar.setManaged(false);
                 });
+            }
+            case QUICK_CHAT -> {
+                try {
+                    QuickChatBroadcastPayload payload =
+                            objectMapper.convertValue(msg.getPayload(), QuickChatBroadcastPayload.class);
+                    if (payload != null) {
+                        Platform.runLater(() -> showQuickChatBubble(
+                                payload.getPhrase(), payload.getSenderSlot(), payload.getSenderUsername()));
+                    }
+                } catch (Exception ignored) {}
+            }
+            case ITEM_SPAWN -> {
+                // Items are embedded in MAP_UPDATE snapshots — no separate state needed.
+                // But play a subtle tick sound so players notice.
+                SoundManager.getInstance().playMoveSfx();
+            }
+            case ITEM_PICKUP -> {
+                try {
+                    ItemPickupPayload payload = objectMapper.convertValue(msg.getPayload(), ItemPickupPayload.class);
+                    if (payload != null) {
+                        Platform.runLater(() -> showPickupToast(payload));
+                    }
+                } catch (Exception ignored) {}
+            }
+            case ITEM_DESPAWN -> {
+                // Items disappear from snapshot automatically; just play a sound
+                SoundManager.getInstance().playClickSfx();
             }
         }
     }
@@ -580,8 +879,25 @@ public class GameView {
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
         int[][] grid = snapshot.getGrid();
-        if (grid == null)
-            return;
+        if (grid == null) return;
+
+        long nowMs = System.currentTimeMillis();
+
+        // Collect buff state for both players from snapshot
+        PlayerBuffDTO buff1 = null, buff2 = null;
+        Long myUserId = sceneManager.getClientState() != null ? sceneManager.getClientState().getUserId() : null;
+        int mySlot = 1;
+        if (snapshot.getPlayers() != null) {
+            for (var p : snapshot.getPlayers()) {
+                if (p.getSlot() == 1) buff1 = p.getBuff();
+                else                  buff2 = p.getBuff();
+                if (myUserId != null && p.getUserId() == myUserId) mySlot = p.getSlot();
+            }
+        }
+        PlayerBuffDTO myBuffLocal    = (mySlot == 1) ? buff1 : buff2;
+        PlayerBuffDTO oppBuffLocal   = (mySlot == 1) ? buff2 : buff1;
+        this.myBuff       = myBuffLocal;
+        this.opponentBuff = oppBuffLocal;
 
         // Draw 20x20 grid cells
         for (int y = 0; y < GRID_SIZE; y++) {
@@ -598,26 +914,117 @@ public class GameView {
             }
         }
 
+        // ── Power-up items on grid ─────────────────────────────────────────
+        if (snapshot.getActiveItems() != null) {
+            for (ActiveItemDTO item : snapshot.getActiveItems()) {
+                double cx = item.getX() * CELL_SIZE;
+                double cy = item.getY() * CELL_SIZE;
+
+                // Glowing background circle
+                String glowColor = switch (item.getType()) {
+                    case SPEED_BOOST -> "rgba(250,204,21,0.35)";
+                    case FREEZE      -> "rgba(56,189,248,0.35)";
+                    case SHIELD      -> "rgba(52,211,153,0.35)";
+                };
+                gc.setFill(Color.web(glowColor.replace("rgba(","#").replace(",","").replace(")","")));
+                // Use simple colored circle for glow
+                switch (item.getType()) {
+                    case SPEED_BOOST -> gc.setFill(Color.color(0.98, 0.80, 0.08, 0.45));
+                    case FREEZE      -> gc.setFill(Color.color(0.22, 0.74, 0.97, 0.45));
+                    case SHIELD      -> gc.setFill(Color.color(0.20, 0.83, 0.60, 0.45));
+                }
+                gc.fillOval(cx + 2, cy + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+
+                // Item emoji
+                String emoji = switch (item.getType()) {
+                    case SPEED_BOOST -> "🚀";
+                    case FREEZE      -> "🧊";
+                    case SHIELD      -> "🛡";
+                };
+                gc.setFont(javafx.scene.text.Font.font(13));
+                gc.setFill(Color.WHITE);
+                gc.fillText(emoji, cx + 4, cy + CELL_SIZE - 5);
+
+                // Despawn countdown ring (outer thin ring that shrinks)
+                long remaining = item.getDespawnAtMs() - nowMs;
+                if (remaining > 0) {
+                    double fraction = Math.min(1.0, remaining / 10000.0);
+                    gc.setStroke(Color.color(1, 1, 1, 0.55));
+                    gc.setLineWidth(1.5);
+                    double arc = fraction * 360;
+                    gc.strokeArc(cx + 1, cy + 1, CELL_SIZE - 3, CELL_SIZE - 3,
+                            90, -arc, javafx.scene.shape.ArcType.OPEN);
+                }
+            }
+        }
+
         // Draw Player position markers and update HUD scores
         if (snapshot.getPlayers() != null) {
             for (var p : snapshot.getPlayers()) {
+                PlayerBuffDTO buf = (p.getSlot() == 1) ? buff1 : buff2;
+
+                // HUD score with buff icon
+                String buffIcon = "";
+                if (buf != null) {
+                    if (buf.isFrozen(nowMs))       buffIcon = " 🧊";
+                    else if (buf.isShielded(nowMs)) buffIcon = " 🛡";
+                    else if (buf.isSpeedBoosted(nowMs)) buffIcon = " 🚀";
+                }
                 if (p.getSlot() == 1) {
-                    player1ScoreLabel.setText(p.getUsername() + " (Blue): " + p.getCellsOwned());
+                    player1ScoreLabel.setText(p.getUsername() + " (Blue): " + p.getCellsOwned() + buffIcon);
                 } else {
-                    player2ScoreLabel.setText(p.getUsername() + " (Orange): " + p.getCellsOwned());
+                    player2ScoreLabel.setText(p.getUsername() + " (Orange): " + p.getCellsOwned() + buffIcon);
                 }
 
                 PositionDTO pos = p.getPosition();
-                if (pos != null) {
-                    double px = pos.getX() * CELL_SIZE + CELL_SIZE / 2;
-                    double py = pos.getY() * CELL_SIZE + CELL_SIZE / 2;
+                if (pos == null) continue;
+                double px = pos.getX() * CELL_SIZE + CELL_SIZE / 2.0;
+                double py = pos.getY() * CELL_SIZE + CELL_SIZE / 2.0;
 
-                    gc.setFill(p.getSlot() == 1 ? Color.WHITE : Color.YELLOW);
-                    gc.fillOval(px - 8, py - 8, 16, 16);
+                // ─ Speed Boost: draw trail effect (faded circle behind)
+                if (buf != null && buf.isSpeedBoosted(nowMs)) {
+                    gc.setFill(p.getSlot() == 1
+                            ? Color.color(0.15, 0.44, 0.84, 0.30)
+                            : Color.color(0.95, 0.55, 0.16, 0.30));
+                    gc.fillOval(px - 12, py - 12, 24, 24);
+                    gc.setFill(p.getSlot() == 1
+                            ? Color.color(0.15, 0.44, 0.84, 0.15)
+                            : Color.color(0.95, 0.55, 0.16, 0.15));
+                    gc.fillOval(px - 16, py - 16, 32, 32);
+                }
 
-                    gc.setStroke(Color.BLACK);
+                // ─ Main player dot
+                gc.setFill(p.getSlot() == 1 ? Color.WHITE : Color.YELLOW);
+                gc.fillOval(px - 8, py - 8, 16, 16);
+                gc.setStroke(Color.BLACK);
+                gc.setLineWidth(2);
+                gc.strokeOval(px - 8, py - 8, 16, 16);
+
+                // ─ Shield: glowing aura ring around player
+                if (buf != null && buf.isShielded(nowMs)) {
+                    double pulse = 0.7 + 0.3 * Math.sin(nowMs / 200.0);
+                    gc.setStroke(Color.color(0.20, 0.83, 0.60, pulse));
+                    gc.setLineWidth(2.5);
+                    gc.strokeOval(px - 12, py - 12, 24, 24);
+                    gc.setStroke(Color.color(0.20, 0.83, 0.60, pulse * 0.4));
+                    gc.setLineWidth(4);
+                    gc.strokeOval(px - 14, py - 14, 28, 28);
+                }
+
+                // ─ Freeze: ice-blue overlay on frozen player
+                if (buf != null && buf.isFrozen(nowMs)) {
+                    gc.setFill(Color.color(0.53, 0.81, 0.98, 0.55));
+                    gc.fillOval(px - 10, py - 10, 20, 20);
+                    gc.setStroke(Color.color(0.22, 0.74, 0.97, 0.9));
                     gc.setLineWidth(2);
-                    gc.strokeOval(px - 8, py - 8, 16, 16);
+                    gc.strokeOval(px - 10, py - 10, 20, 20);
+                    // Draw snowflake-like cross
+                    gc.setStroke(Color.color(1, 1, 1, 0.80));
+                    gc.setLineWidth(1.5);
+                    gc.strokeLine(px - 6, py, px + 6, py);
+                    gc.strokeLine(px, py - 6, px, py + 6);
+                    gc.strokeLine(px - 4, py - 4, px + 4, py + 4);
+                    gc.strokeLine(px - 4, py + 4, px + 4, py - 4);
                 }
             }
         }
@@ -1123,6 +1530,8 @@ public class GameView {
                         prepOverlay.setVisible(false);
                         prepOverlay.setManaged(false);
                         matchPlaying = true;
+                        quickChatBar.setVisible(true);
+                        quickChatBar.setManaged(true);
                         canvas.requestFocus();
                     });
                     ft.play();
@@ -1318,5 +1727,71 @@ public class GameView {
 
         st.play();
         ft.play();
+    }
+
+    // =========================================================================
+    // Reconnect Grace Period UI helpers
+    // =========================================================================
+
+    /**
+     * Show a non-blocking yellow banner overlay above the board informing the
+     * waiting player that their opponent disconnected and showing a countdown.
+     */
+    private void showReconnectBanner(String username, int graceSeconds, long deadlineEpochMs) {
+        hideReconnectBanner(); // cancel any previous one
+
+        reconnectBannerLabel = new Label();
+        reconnectBannerLabel.setStyle(
+                "-fx-background-color: rgba(250,204,21,0.92); " +
+                "-fx-text-fill: #1E293B; -fx-font-weight: 800; -fx-font-size: 14px; " +
+                "-fx-padding: 10 20 10 20; -fx-background-radius: 10px; " +
+                "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 8, 0, 0, 2);");
+        reconnectBannerLabel.setMouseTransparent(true);
+        StackPane.setAlignment(reconnectBannerLabel, Pos.TOP_CENTER);
+        StackPane.setMargin(reconnectBannerLabel, new Insets(12, 0, 0, 0));
+        root.getChildren().add(reconnectBannerLabel);
+
+        // Ticker: update every 100ms
+        matchPlaying = false; // freeze input during grace
+        statusLabel.setText("⚠️ " + username + " disconnected. Waiting for reconnect...");
+
+        ScheduledExecutorService sched = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "GraceBannerThread");
+            t.setDaemon(true);
+            return t;
+        });
+        reconnectCountdownTask = sched.scheduleAtFixedRate(() -> {
+            long remaining = deadlineEpochMs - System.currentTimeMillis();
+            if (remaining <= 0) {
+                Platform.runLater(this::hideReconnectBanner);
+                sched.shutdown();
+                return;
+            }
+            int sec = (int) Math.ceil(remaining / 1000.0);
+            Platform.runLater(() -> {
+                if (reconnectBannerLabel != null) {
+                    reconnectBannerLabel.setText("⏳ " + username + " reconnecting... " + sec + "s");
+                }
+            });
+        }, 0, 100, TimeUnit.MILLISECONDS);
+    }
+
+    private void hideReconnectBanner() {
+        if (reconnectBannerLabel != null) {
+            root.getChildren().remove(reconnectBannerLabel);
+            reconnectBannerLabel = null;
+        }
+        if (reconnectCountdownTask != null) {
+            reconnectCountdownTask.cancel(false);
+            reconnectCountdownTask = null;
+        }
+    }
+
+    /** Hide the pre-match preparation overlay (used when restoring after reconnect). */
+    private void hidePrepOverlay() {
+        if (prepOverlay != null) {
+            prepOverlay.setVisible(false);
+            prepOverlay.setManaged(false);
+        }
     }
 }

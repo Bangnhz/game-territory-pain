@@ -169,13 +169,13 @@ public class SoundManager {
 
     private void updateSoundButtonDisplay(Button btn, boolean isMuted) {
         if (isMuted) {
-            btn.setText("🔇 Sound: OFF");
+            btn.setText("🔇");
             btn.getStyleClass().removeAll("sound-btn-on");
             if (!btn.getStyleClass().contains("sound-btn-off")) {
                 btn.getStyleClass().add("sound-btn-off");
             }
         } else {
-            btn.setText("🔊 Sound: ON");
+            btn.setText("🔊");
             btn.getStyleClass().removeAll("sound-btn-off");
             if (!btn.getStyleClass().contains("sound-btn-on")) {
                 btn.getStyleClass().add("sound-btn-on");

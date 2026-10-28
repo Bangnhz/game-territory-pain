@@ -38,6 +38,13 @@
             <version>5.3.1</version>
         </dependency>
 
+        <!-- Logging: SLF4J provider (Logback) - version aligned with Spring Boot BOM's logback-core -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.4.14</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

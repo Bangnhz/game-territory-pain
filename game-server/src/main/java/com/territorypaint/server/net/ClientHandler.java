@@ -9,6 +9,8 @@ import com.territorypaint.common.payload.LoginPayload;
 import com.territorypaint.common.payload.LoginResultPayload;
 import com.territorypaint.common.protocol.ActionType;
 import com.territorypaint.server.GameServer;
+import com.territorypaint.server.room.GameRoom;
+import com.territorypaint.server.room.RoomRegistry;
 import com.territorypaint.server.session.Session;
 import com.territorypaint.server.session.SessionManager;
 import org.slf4j.Logger;
@@ -39,6 +41,7 @@ public class ClientHandler implements Runnable {
     private final GameServer server;
     private final SessionManager sessionManager;
     private final BackendClient backendClient;
+    private final RoomRegistry roomRegistry;
 
     private final BlockingQueue<Message> outboundQueue = new ArrayBlockingQueue<>(256); // Requirement 14.13
     private final ObjectMapper objectMapper;
@@ -61,11 +64,13 @@ public class ClientHandler implements Runnable {
     private int currentWindowMsgCount = 0;
     private int consecutiveExcessiveWindows = 0;
 
-    public ClientHandler(Socket socket, GameServer server, SessionManager sessionManager, BackendClient backendClient) {
+    public ClientHandler(Socket socket, GameServer server, SessionManager sessionManager,
+                         BackendClient backendClient, RoomRegistry roomRegistry) {
         this.socket = socket;
         this.server = server;
         this.sessionManager = sessionManager;
         this.backendClient = backendClient;
+        this.roomRegistry = roomRegistry;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
     }
@@ -187,6 +192,18 @@ public class ClientHandler implements Runnable {
 
             // Start heartbeat pinging (Requirement 16.6)
             startPingSchedule();
+
+            // Check for pending reconnect (Grace Period)
+            String reconnectRoomId = sessionManager.consumePendingReconnect(vr.userId);
+            if (reconnectRoomId != null) {
+                GameRoom room = roomRegistry.getRoom(reconnectRoomId);
+                if (room != null) {
+                    logger.info("Reconnecting user {} to room {}", vr.username, reconnectRoomId);
+                    newSession.setCurrentRoomId(reconnectRoomId);
+                    room.handleReconnect(newSession);
+                    return; // skip normal broadcastOnlineList below
+                }
+            }
 
             // Broadcast ONLINE_LIST (Requirement 3.1)
             sessionManager.broadcastOnlineList();

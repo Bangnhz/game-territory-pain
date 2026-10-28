@@ -23,6 +23,13 @@ public class SessionManager {
     private final Map<Long, Session> sessionsByUserId = new ConcurrentHashMap<>();
 
     /**
+     * Pending reconnect entries: userId → roomId.
+     * Added when a player disconnects during a match grace period;
+     * consumed when they successfully log in again within the grace window.
+     */
+    private final Map<Long, String> pendingReconnects = new ConcurrentHashMap<>();
+
+    /**
      * Register a new authenticated session.
      * Requirements: 2.5, 2.9, 2.10
      *
@@ -97,5 +104,34 @@ public class SessionManager {
                 session.getClientHandler().send(message);
             }
         }
+    }
+
+    // =========================================================================
+    // Reconnect Grace Period support
+    // =========================================================================
+
+    /**
+     * Register that a player is in grace period and may reconnect to the given room.
+     * Called by GameRoom when it starts a grace period instead of immediately forfeiting.
+     */
+    public void registerPendingReconnect(Long userId, String roomId) {
+        pendingReconnects.put(userId, roomId);
+        logger.info("Registered pending reconnect for userId={} roomId={}", userId, roomId);
+    }
+
+    /**
+     * Consume and return the roomId a player should reconnect to.
+     * Returns null if no pending reconnect exists for this user.
+     * Removes the entry so it can only be consumed once.
+     */
+    public String consumePendingReconnect(Long userId) {
+        return pendingReconnects.remove(userId);
+    }
+
+    /**
+     * Cancel a pending reconnect entry (e.g. grace period expired).
+     */
+    public void removePendingReconnect(Long userId) {
+        pendingReconnects.remove(userId);
     }
 }
