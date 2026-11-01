@@ -3,10 +3,13 @@ package com.territorypaint.server.game;
 import com.territorypaint.common.dto.PlayerSnapshotDTO;
 import com.territorypaint.common.dto.PositionDTO;
 import com.territorypaint.common.dto.SnapshotDTO;
+import com.territorypaint.common.protocol.SkillType;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Authoritative match state maintained by the Game Server.
@@ -37,6 +40,12 @@ public class GameState {
     private long lastMoveTime1 = 0;
     private long lastMoveTime2 = 0;
 
+    // Skill tracking - each skill can only be used once per match
+    private final Map<Integer, Map<SkillType, Boolean>> skillsUsed = new HashMap<>();
+    
+    // Active skill effects with expiration times
+    private final Map<Integer, Map<SkillType, Long>> activeSkills = new HashMap<>();
+
     public GameState(String roomId, String matchId, Long user1Id, String user1Username, Long user2Id, String user2Username) {
         this.roomId = roomId;
         this.matchId = matchId;
@@ -52,6 +61,12 @@ public class GameState {
         // Player 2 at (19,19) (Requirement 5.6, 5.7)
         this.pos2 = new PositionDTO(19, 19);
         this.grid[19][19] = 2;
+
+        // Initialize skill tracking for both players
+        skillsUsed.put(1, new HashMap<>());
+        skillsUsed.put(2, new HashMap<>());
+        activeSkills.put(1, new HashMap<>());
+        activeSkills.put(2, new HashMap<>());
     }
 
     public String getRoomId() {

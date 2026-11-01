@@ -2,6 +2,7 @@
 -- Requirements: 12.1, 12.2, 12.3, 12.5, 12.6, 12.7, 12.8, 12.12
 
 -- Drop tables if they exist (for development)
+DROP TABLE IF EXISTS MATCH_SKILLS;
 DROP TABLE IF EXISTS MATCH_HISTORY;
 DROP TABLE IF EXISTS MATCHES;
 DROP TABLE IF EXISTS USER_STATS;
@@ -85,3 +86,22 @@ CREATE INDEX idx_matches_ended_at ON MATCHES(ended_at DESC);
 
 -- Composite index for efficient history queries
 CREATE INDEX idx_match_history_lookup ON MATCH_HISTORY(user_id, match_id);
+
+-- MATCH_SKILLS table - stores skills used during matches
+CREATE TABLE MATCH_SKILLS (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    match_id CHAR(36) NOT NULL,
+    user_id BIGINT NOT NULL,
+    skill_type VARCHAR(20) NOT NULL,
+    used_at DATETIME(3) NOT NULL,
+    
+    CONSTRAINT fk_match_skills_match FOREIGN KEY (match_id) REFERENCES MATCHES(match_id) ON DELETE CASCADE,
+    CONSTRAINT fk_match_skills_user FOREIGN KEY (user_id) REFERENCES USERS(id) ON DELETE RESTRICT,
+    CONSTRAINT chk_skill_type CHECK (skill_type IN ('FREEZE', 'SHIELD')),
+    CONSTRAINT uq_match_user_skill UNIQUE (match_id, user_id, skill_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Index for querying skills by match
+CREATE INDEX idx_match_skills_match ON MATCH_SKILLS(match_id);
+CREATE INDEX idx_match_skills_user ON MATCH_SKILLS(user_id, match_id);
+

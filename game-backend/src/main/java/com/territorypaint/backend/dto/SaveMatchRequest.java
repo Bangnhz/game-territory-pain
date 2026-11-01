@@ -44,11 +44,14 @@ public class SaveMatchRequest {
     
     private Long forfeitedUserId;
     
+    @Valid
+    private List<SkillUsageEntry> skills;
+    
     public SaveMatchRequest() {
     }
     
     public SaveMatchRequest(String matchId, String roomId, Instant startedAt, Instant endedAt,
-                           String endReason, List<PlayerEntry> players, Long forfeitedUserId) {
+                           String endReason, List<PlayerEntry> players, Long forfeitedUserId, List<SkillUsageEntry> skills) {
         this.matchId = matchId;
         this.roomId = roomId;
         this.startedAt = startedAt;
@@ -56,6 +59,7 @@ public class SaveMatchRequest {
         this.endReason = endReason;
         this.players = players;
         this.forfeitedUserId = forfeitedUserId;
+        this.skills = skills;
     }
     
     public String getMatchId() {
@@ -112,6 +116,14 @@ public class SaveMatchRequest {
     
     public void setForfeitedUserId(Long forfeitedUserId) {
         this.forfeitedUserId = forfeitedUserId;
+    }
+
+    public List<SkillUsageEntry> getSkills() {
+        return skills;
+    }
+    
+    public void setSkills(List<SkillUsageEntry> skills) {
+        this.skills = skills;
     }
 
     @com.fasterxml.jackson.annotation.JsonSetter("forfeitedUserId")
