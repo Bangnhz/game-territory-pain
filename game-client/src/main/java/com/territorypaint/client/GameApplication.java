@@ -31,7 +31,7 @@ public class GameApplication extends Application {
     }
 
     private static void loadProperties() {
-        // 1. Try external config file first (current working directory)
+        // 1. Try external config file first
         File externalConfig = new File(CONFIG_FILE);
         if (externalConfig.exists() && externalConfig.isFile()) {
             try (InputStream is = new FileInputStream(externalConfig)) {

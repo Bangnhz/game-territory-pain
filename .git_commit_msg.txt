@@ -1,0 +1,28 @@
+feat: add Quick In-game Chat + Power-up system (Speed Boost / Freeze / Shield)
+
+Quick In-game Chat:
+- Add QUICK_CHAT ActionType (Client->Server, Server->both broadcast)
+- QuickChatPayload (phraseIndex + matchId) and QuickChatBroadcastPayload
+- GameRoom.handleQuickChat with 2s rate-limit per player
+- GameServer dispatches QUICK_CHAT to room
+- GameView: 5-phrase button bar (visible during PLAYING only), 2s
+  client-side cooldown, floating speech bubble toast (fade-in, 3s,
+  fade-out), per-player colour (blue=P1 / orange=P2)
+
+Power-up system:
+- PowerUpType enum: SPEED_BOOST, FREEZE, SHIELD
+- ActiveItemDTO / PlayerBuffDTO embedded in SnapshotDTO+PlayerSnapshotDTO
+- ItemSpawnPayload / ItemPickupPayload / ItemDespawnPayload
+- ITEM_SPAWN, ITEM_PICKUP, ITEM_DESPAWN ActionTypes
+- PowerUpItem server model with despawn-task handle
+- GameState: buff timers (speedBoostEnd, shieldEnd, frozenEnd) per slot,
+  protectedCells map for Shield mechanic, checkCooldown uses 67ms for
+  Speed Boost, applyFreeze blocked by Shield
+- CellCaptureEngine: new primary overload takes GameState for shield-
+  protection checks; legacy overload retained
+- GameRoom: spawn scheduler (T+15s, every 15-20s, max 2 items),
+  weighted drop table (Speed 45 / Shield 35 / Freeze 20), auto-despawn
+  at 10s, pickup detection in handleMove, cancelItemSystem on match end
+- GameView: items drawn on canvas with glow + emoji + despawn countdown
+  arc, Speed trail, Shield pulse aura, Freeze snowflake overlay, HUD
+  buff icons, pickup toast notification (colour-coded, 2.5s fade)
